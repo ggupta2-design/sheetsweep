@@ -37,7 +37,8 @@ def test_cleanup_trims_normalizes_and_deduplicates_after_cleaning():
         CleanupOptions(blank_value="N/A", remove_duplicates=True),
     )
     assert plan.rows == ({"name": "Ada", "email": "N/A"},)
-    assert plan.changed_cells == 2
+    # The trimmed name and both normalized blank emails are changed cells.
+    assert plan.changed_cells == 3
     assert plan.duplicate_rows_removed == 1
     assert plan.operations == (
         "trim_whitespace",
