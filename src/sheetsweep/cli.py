@@ -1,0 +1,73 @@
+"""Sheetsweep command-line interface."""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+from typing import Sequence
+
+from .clean import build_cleanup_plan
+from .loader import DatasetError, load_csv
+from .models import CleanupOptions
+from .profile import profile_dataset
+from .report import format_plan, format_profile
+from .writer import OutputError, write_plan
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="sheetsweep", description="Audit and clean CSV files safely")
+    parser.add_argument("--version", action="version", version="sheetsweep 0.1.0")
+    commands = parser.add_subparsers(dest="command", required=True)
+
+    audit = commands.add_parser("audit", help="inspect a CSV without changing it")
+    audit.add_argument("source", type=Path)
+    audit.add_argument("--json", action="store_true", dest="as_json")
+
+    clean = commands.add_parser("clean", help="preview or write a cleaned CSV")
+    clean.add_argument("source", type=Path)
+    clean.add_argument("--output", type=Path)
+    clean.add_argument("--remove-duplicates", action="store_true")
+    clean.add_argument("--keep-whitespace", action="store_true")
+    clean.add_argument("--blank-value", default="")
+    clean.add_argument("--json", action="store_true", dest="as_json")
+    clean.add_argument("--apply", action="store_true", help="write the output after previewing")
+    clean.add_argument("--overwrite", action="store_true", help="replace an existing output file")
+    return parser
+
+
+def run(argv: Sequence[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    try:
+        dataset = load_csv(args.source)
+        if args.command == "audit":
+            print(format_profile(profile_dataset(dataset), as_json=args.as_json))
+            return 0
+
+        options = CleanupOptions(
+            trim_whitespace=not args.keep_whitespace,
+            normalize_blanks=True,
+            blank_value=args.blank_value,
+            remove_duplicates=args.remove_duplicates,
+        )
+        plan = build_cleanup_plan(dataset, options)
+        print(format_plan(plan, as_json=args.as_json))
+        if not args.apply:
+            print("Preview only; no file was written.", file=sys.stderr)
+            return 0
+        if args.output is None:
+            raise OutputError("--output is required with --apply")
+        written = write_plan(plan, args.output, overwrite=args.overwrite)
+        print(f"Wrote cleaned CSV: {written}", file=sys.stderr)
+        return 0
+    except (DatasetError, OutputError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+
+def main() -> None:
+    raise SystemExit(run())
+
+
+if __name__ == "__main__":
+    main()
