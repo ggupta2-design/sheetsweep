@@ -7,6 +7,7 @@ from dataclasses import asdict
 from typing import Any
 
 from .models import CleanupPlan, Profile
+from .validation import ValidationReport
 
 
 def profile_payload(profile: Profile) -> dict[str, Any]:
@@ -61,3 +62,30 @@ def format_plan(plan: CleanupPlan, *, as_json: bool = False) -> str:
             f"Operations: {', '.join(payload['operations']) or 'none'}",
         ]
     )
+
+
+def validation_payload(report: ValidationReport) -> dict[str, Any]:
+    """Return a stable, automation-friendly validation payload."""
+
+    return asdict(report)
+
+
+def format_validation(report: ValidationReport, *, as_json: bool = False) -> str:
+    """Format validation results without including spreadsheet values."""
+
+    payload = validation_payload(report)
+    if as_json:
+        return json.dumps(payload, indent=2, sort_keys=True)
+    lines = [
+        f"Source: {report.source}",
+        f"Rows checked: {report.row_count}",
+        f"Result: {'PASS' if report.passed else 'FAIL'}",
+    ]
+    if not report.issues:
+        lines.append("Issues: none")
+    else:
+        lines.append(f"Issues: {len(report.issues)}")
+        for issue in report.issues:
+            location = f" [{issue.column}]" if issue.column else ""
+            lines.append(f"- {issue.severity.upper()} {issue.rule}{location}: {issue.message}")
+    return "\n".join(lines)
