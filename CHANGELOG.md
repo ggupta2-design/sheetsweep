@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0 — 2026-08-26
+
+- Added read-only data-quality validation reports.
+- Added required-column, maximum blank-rate, and unique-column rules.
+- Added readable and JSON validation output without cell contents.
+- Added automation-friendly pass, quality-failure, and input-error exit statuses.
+- Added validation tests, CLI workflows, and privacy guidance.
+
 ## 0.1.0 — 2026-08-25
 
 - Added safe CSV loading with delimiter detection and structural validation.
