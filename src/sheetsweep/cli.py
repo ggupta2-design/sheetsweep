@@ -11,7 +11,8 @@ from .clean import build_cleanup_plan
 from .loader import DatasetError, load_csv
 from .models import CleanupOptions
 from .profile import profile_dataset
-from .report import format_plan, format_profile
+from .report import format_plan, format_profile, format_validation
+from .validation import validate_dataset
 from .writer import OutputError, write_plan
 
 
@@ -23,6 +24,23 @@ def build_parser() -> argparse.ArgumentParser:
     audit = commands.add_parser("audit", help="inspect a CSV without changing it")
     audit.add_argument("source", type=Path)
     audit.add_argument("--json", action="store_true", dest="as_json")
+
+    validate = commands.add_parser("validate", help="check explicit data-quality expectations")
+    validate.add_argument("source", type=Path)
+    validate.add_argument(
+        "--require-column",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="require a named column; may be repeated",
+    )
+    validate.add_argument(
+        "--max-blank-percent",
+        type=float,
+        metavar="PERCENT",
+        help="fail columns whose blank rate is above this percentage",
+    )
+    validate.add_argument("--json", action="store_true", dest="as_json")
 
     clean = commands.add_parser("clean", help="preview or write a cleaned CSV")
     clean.add_argument("source", type=Path)
@@ -43,6 +61,14 @@ def run(argv: Sequence[str] | None = None) -> int:
         if args.command == "audit":
             print(format_profile(profile_dataset(dataset), as_json=args.as_json))
             return 0
+        if args.command == "validate":
+            report = validate_dataset(
+                dataset,
+                required_columns=args.require_column,
+                max_blank_percent=args.max_blank_percent,
+            )
+            print(format_validation(report, as_json=args.as_json))
+            return 0 if report.passed else 1
 
         options = CleanupOptions(
             trim_whitespace=not args.keep_whitespace,
@@ -60,7 +86,7 @@ def run(argv: Sequence[str] | None = None) -> int:
         written = write_plan(plan, args.output, overwrite=args.overwrite)
         print(f"Wrote cleaned CSV: {written}", file=sys.stderr)
         return 0
-    except (DatasetError, OutputError) as exc:
+    except (DatasetError, OutputError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
 
