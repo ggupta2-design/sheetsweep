@@ -18,7 +18,7 @@ from .writer import OutputError, write_plan
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sheetsweep", description="Audit and clean CSV files safely")
-    parser.add_argument("--version", action="version", version="sheetsweep 0.1.0")
+    parser.add_argument("--version", action="version", version="sheetsweep 0.2.0")
     commands = parser.add_subparsers(dest="command", required=True)
 
     audit = commands.add_parser("audit", help="inspect a CSV without changing it")
