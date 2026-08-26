@@ -50,3 +50,22 @@ def test_rejects_invalid_blank_thresholds(tmp_path, threshold):
             dataset(tmp_path, "name\nAda\n"),
             max_blank_percent=threshold,
         )
+
+
+def test_reports_repeated_values_in_unique_columns(tmp_path):
+    report = validate_dataset(
+        dataset(tmp_path, "id,name\n1,Ada\n1,Lin\n,Sam\n,Jo\n"),
+        unique_columns=["id"],
+    )
+    issue = report.issues[0]
+    assert (issue.rule, issue.column, issue.count) == ("unique_column", "id", 1)
+    assert "Ada" not in issue.message
+    assert "Lin" not in issue.message
+
+
+def test_reports_missing_unique_columns(tmp_path):
+    report = validate_dataset(
+        dataset(tmp_path, "name\nAda\n"),
+        unique_columns=["id"],
+    )
+    assert report.issues[0].message == "Unique column is missing: id"
