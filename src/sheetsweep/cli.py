@@ -40,6 +40,13 @@ def build_parser() -> argparse.ArgumentParser:
         metavar="PERCENT",
         help="fail columns whose blank rate is above this percentage",
     )
+    validate.add_argument(
+        "--unique-column",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="require nonblank values in a column to be unique; may be repeated",
+    )
     validate.add_argument("--json", action="store_true", dest="as_json")
 
     clean = commands.add_parser("clean", help="preview or write a cleaned CSV")
@@ -66,6 +73,7 @@ def run(argv: Sequence[str] | None = None) -> int:
                 dataset,
                 required_columns=args.require_column,
                 max_blank_percent=args.max_blank_percent,
+                unique_columns=args.unique_column,
             )
             print(format_validation(report, as_json=args.as_json))
             return 0 if report.passed else 1
