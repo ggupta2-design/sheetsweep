@@ -53,3 +53,22 @@ def test_reports_are_readable_and_machine_parseable(tmp_path):
     profile = Profile("source.csv", 2, 1, ({"name": "name", "type": "text", "blank_count": 0, "unique_count": 1, "most_common": "Ada"},), 1)
     assert "Exact duplicate rows: 1" in format_profile(profile)
     assert json.loads(format_profile(profile, as_json=True))["row_count"] == 2
+
+
+def test_formats_validation_without_exposing_cell_values(tmp_path):
+    from sheetsweep.loader import load_csv
+    from sheetsweep.report import format_validation
+    from sheetsweep.validation import validate_dataset
+
+    source = tmp_path / "private.csv"
+    source.write_text("name,email\nAda,\n", encoding="utf-8")
+    report = validate_dataset(load_csv(source), max_blank_percent=0)
+
+    text = format_validation(report)
+    assert "Result: FAIL" in text
+    assert "max_blank_percent [email]" in text
+    assert "Ada" not in text
+
+    payload = json.loads(format_validation(report, as_json=True))
+    assert payload["passed"] is False
+    assert payload["issues"][0]["column"] == "email"
