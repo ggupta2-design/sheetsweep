@@ -82,3 +82,12 @@ def test_validate_rejects_invalid_thresholds(tmp_path, capsys):
     source.write_text("name\nAda\n", encoding="utf-8")
     assert run(["validate", str(source), "--max-blank-percent", "101"]) == 2
     assert "between 0 and 100" in capsys.readouterr().err
+
+
+def test_validate_unique_columns_through_cli(tmp_path, capsys):
+    source = tmp_path / "input.csv"
+    source.write_text("id,name\n1,Ada\n1,Lin\n", encoding="utf-8")
+    assert run(["validate", str(source), "--unique-column", "id", "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["issues"][0]["rule"] == "unique_column"
+    assert payload["issues"][0]["count"] == 1
