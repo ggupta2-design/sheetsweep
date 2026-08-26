@@ -34,6 +34,7 @@ def validate_dataset(
     *,
     required_columns: Iterable[str] = (),
     max_blank_percent: float | None = None,
+    unique_columns: Iterable[str] = (),
 ) -> ValidationReport:
     """Validate structure and blank rates without changing the dataset."""
 
@@ -69,6 +70,35 @@ def validate_dataset(
                         ),
                     )
                 )
+
+    for header in tuple(dict.fromkeys(unique_columns)):
+        if header not in dataset.headers:
+            issues.append(
+                ValidationIssue(
+                    rule="unique_column",
+                    column=header,
+                    count=1,
+                    message=f"Unique column is missing: {header}",
+                )
+            )
+            continue
+        seen: set[str] = set()
+        duplicate_count = 0
+        for row in dataset.rows:
+            value = row[header].strip()
+            if value and value in seen:
+                duplicate_count += 1
+            elif value:
+                seen.add(value)
+        if duplicate_count:
+            issues.append(
+                ValidationIssue(
+                    rule="unique_column",
+                    column=header,
+                    count=duplicate_count,
+                    message=f"Column contains {duplicate_count} repeated nonblank value(s)",
+                )
+            )
 
     return ValidationReport(
         source=str(dataset.source),
