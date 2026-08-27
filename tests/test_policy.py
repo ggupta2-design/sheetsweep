@@ -56,3 +56,31 @@ def test_rejects_ambiguous_or_unknown_policy_data(tmp_path, payload, message):
 def test_reports_missing_policy_files(tmp_path):
     with pytest.raises(PolicyError, match="does not exist"):
         load_policy(tmp_path / "missing.json")
+
+
+def test_loads_versioned_named_policies(tmp_path):
+    policy = load_policy(
+        write_policy(
+            tmp_path,
+            {
+                "schema_version": 1,
+                "name": " Customer import ",
+                "required_columns": ["customer_id"],
+            },
+        )
+    )
+    assert policy.schema_version == 1
+    assert policy.name == "Customer import"
+
+
+@pytest.mark.parametrize(
+    ("payload", "message"),
+    [
+        ({"schema_version": 2}, "Unsupported"),
+        ({"schema_version": True}, "must be an integer"),
+        ({"name": " "}, "nonblank"),
+    ],
+)
+def test_rejects_unsupported_policy_metadata(tmp_path, payload, message):
+    with pytest.raises(PolicyError, match=message):
+        load_policy(write_policy(tmp_path, payload))
