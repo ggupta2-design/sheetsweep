@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.0 — 2026-08-27
+
+- Added strict, reusable JSON validation policies.
+- Added schema versions and human-readable policy names.
+- Added deterministic merging of policy rules and command-line overrides.
+- Added standalone readable and JSON policy checks.
+- Added policy-driven CSV validation without modifying source data.
+- Added a practical example, automated tests, and policy safety guidance.
+
 ## 0.2.0 — 2026-08-26
 
 - Added read-only data-quality validation reports.
