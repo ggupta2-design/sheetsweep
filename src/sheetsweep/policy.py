@@ -85,3 +85,26 @@ def load_policy(path: str | Path) -> ValidationPolicy:
         unique_columns=unique,
         max_blank_percent=threshold,
     )
+
+
+def merge_policy(
+    policy: ValidationPolicy,
+    *,
+    required_columns: tuple[str, ...] = (),
+    unique_columns: tuple[str, ...] = (),
+    max_blank_percent: float | None = None,
+) -> ValidationPolicy:
+    """Add CLI rules to a policy, with an explicit threshold taking precedence."""
+
+    required = tuple(dict.fromkeys((*policy.required_columns, *required_columns)))
+    unique = tuple(dict.fromkeys((*policy.unique_columns, *unique_columns)))
+    threshold = policy.max_blank_percent if max_blank_percent is None else max_blank_percent
+    if threshold is not None and not 0 <= threshold <= 100:
+        raise PolicyError("max_blank_percent must be between 0 and 100")
+    return ValidationPolicy(
+        schema_version=policy.schema_version,
+        name=policy.name,
+        required_columns=required,
+        unique_columns=unique,
+        max_blank_percent=threshold,
+    )
