@@ -43,3 +43,13 @@ sheetsweep validate contacts.csv \
 ```
 
 Validation exits with status 1 when a rule fails, making it useful in automated imports and CI. Add `--json` for structured output. See [validation.md](validation.md) for rule behavior and privacy boundaries.
+
+
+Reuse the same validation rules from a checked-in policy:
+
+```bash
+sheetsweep check-policy examples/contacts-policy.json
+sheetsweep validate contacts.csv --policy examples/contacts-policy.json
+```
+
+You can add one-off `--require-column` and `--unique-column` rules alongside a policy. A command-line blank threshold overrides the policy threshold for that run. See [policies.md](policies.md) for the strict JSON schema and merge behavior.
