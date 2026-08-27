@@ -2,7 +2,13 @@ import json
 
 import pytest
 
-from sheetsweep.policy import PolicyError, ValidationPolicy, load_policy, merge_policy
+from sheetsweep.policy import (
+    PolicyError,
+    ValidationPolicy,
+    format_policy,
+    load_policy,
+    merge_policy,
+)
 
 
 def write_policy(tmp_path, payload, name="policy.json"):
@@ -108,3 +114,18 @@ def test_merges_additive_columns_and_threshold_override():
 def test_preserves_policy_threshold_without_override():
     policy = ValidationPolicy(max_blank_percent=10)
     assert merge_policy(policy).max_blank_percent == 10
+
+
+def test_formats_policy_for_people_and_automation():
+    policy = ValidationPolicy(
+        name="contacts",
+        required_columns=("email",),
+        unique_columns=("id",),
+        max_blank_percent=5,
+    )
+    text = format_policy(policy)
+    assert "Policy: contacts" in text
+    assert "Result: VALID" in text
+    payload = json.loads(format_policy(policy, as_json=True))
+    assert payload["required_columns"] == ["email"]
+    assert payload["max_blank_percent"] == 5
