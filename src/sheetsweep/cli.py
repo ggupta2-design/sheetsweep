@@ -10,7 +10,7 @@ from typing import Sequence
 from .clean import build_cleanup_plan
 from .loader import DatasetError, load_csv
 from .models import CleanupOptions
-from .policy import ValidationPolicy, load_policy, merge_policy
+from .policy import ValidationPolicy, format_policy, load_policy, merge_policy
 from .profile import profile_dataset
 from .report import format_plan, format_profile, format_validation
 from .validation import validate_dataset
@@ -21,6 +21,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sheetsweep", description="Audit and clean CSV files safely")
     parser.add_argument("--version", action="version", version="sheetsweep 0.2.0")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    check_policy = commands.add_parser(
+        "check-policy",
+        help="validate a JSON policy without reading a CSV",
+    )
+    check_policy.add_argument("policy", type=Path)
+    check_policy.add_argument("--json", action="store_true", dest="as_json")
 
     audit = commands.add_parser("audit", help="inspect a CSV without changing it")
     audit.add_argument("source", type=Path)
@@ -66,6 +73,10 @@ def build_parser() -> argparse.ArgumentParser:
 def run(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "check-policy":
+            print(format_policy(load_policy(args.policy), as_json=args.as_json))
+            return 0
+
         dataset = load_csv(args.source)
         if args.command == "audit":
             print(format_profile(profile_dataset(dataset), as_json=args.as_json))
