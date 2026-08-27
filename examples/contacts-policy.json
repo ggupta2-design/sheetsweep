@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "name": "Contacts import",
+  "required_columns": [
+    "contact_id",
+    "email"
+  ],
+  "unique_columns": [
+    "contact_id"
+  ],
+  "max_blank_percent": 10
+}
