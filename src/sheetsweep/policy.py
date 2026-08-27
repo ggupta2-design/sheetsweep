@@ -108,3 +108,37 @@ def merge_policy(
         unique_columns=unique,
         max_blank_percent=threshold,
     )
+
+
+def policy_payload(policy: ValidationPolicy) -> dict[str, Any]:
+    """Return a stable summary suitable for scripts and reviews."""
+
+    return {
+        "schema_version": policy.schema_version,
+        "name": policy.name,
+        "required_columns": list(policy.required_columns),
+        "unique_columns": list(policy.unique_columns),
+        "max_blank_percent": policy.max_blank_percent,
+    }
+
+
+def format_policy(policy: ValidationPolicy, *, as_json: bool = False) -> str:
+    """Format a validated policy without reading a spreadsheet."""
+
+    payload = policy_payload(policy)
+    if as_json:
+        return json.dumps(payload, indent=2, sort_keys=True)
+    lines = [
+        f"Policy: {policy.name or 'unnamed'}",
+        f"Schema version: {policy.schema_version}",
+        f"Required columns: {', '.join(policy.required_columns) or 'none'}",
+        f"Unique columns: {', '.join(policy.unique_columns) or 'none'}",
+        "Maximum blank percent: "
+        + (
+            f"{policy.max_blank_percent:g}%"
+            if policy.max_blank_percent is not None
+            else "not set"
+        ),
+        "Result: VALID",
+    ]
+    return "\n".join(lines)
