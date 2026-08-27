@@ -91,3 +91,50 @@ def test_validate_unique_columns_through_cli(tmp_path, capsys):
     payload = json.loads(capsys.readouterr().out)
     assert payload["issues"][0]["rule"] == "unique_column"
     assert payload["issues"][0]["count"] == 1
+
+
+def test_validate_applies_policy_and_cli_overrides(tmp_path, capsys):
+    source = tmp_path / "input.csv"
+    source.write_text("id,email\n1,\n1,ada@example.com\n", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "required_columns": ["id", "email"],
+                "unique_columns": ["id"],
+                "max_blank_percent": 60,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    assert run(["validate", str(source), "--policy", str(policy), "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert [issue["rule"] for issue in payload["issues"]] == ["unique_column"]
+
+    assert run(
+        [
+            "validate",
+            str(source),
+            "--policy",
+            str(policy),
+            "--max-blank-percent",
+            "40",
+            "--json",
+        ]
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert {issue["rule"] for issue in payload["issues"]} == {
+        "max_blank_percent",
+        "unique_column",
+    }
+
+
+def test_validate_reports_invalid_policy_as_input_error(tmp_path, capsys):
+    source = tmp_path / "input.csv"
+    source.write_text("id\n1\n", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"unknown": true}', encoding="utf-8")
+    assert run(["validate", str(source), "--policy", str(policy)]) == 2
+    assert "Unknown policy field" in capsys.readouterr().err
