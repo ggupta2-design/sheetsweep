@@ -138,3 +138,24 @@ def test_validate_reports_invalid_policy_as_input_error(tmp_path, capsys):
     policy.write_text('{"unknown": true}', encoding="utf-8")
     assert run(["validate", str(source), "--policy", str(policy)]) == 2
     assert "Unknown policy field" in capsys.readouterr().err
+
+
+def test_check_policy_validates_without_reading_csv(tmp_path, capsys):
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "name": "imports",
+                "required_columns": ["id"],
+            }
+        ),
+        encoding="utf-8",
+    )
+    assert run(["check-policy", str(policy), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["name"] == "imports"
+
+    policy.write_text('{"schema_version": 99}', encoding="utf-8")
+    assert run(["check-policy", str(policy)]) == 2
+    assert "Unsupported policy schema_version" in capsys.readouterr().err
