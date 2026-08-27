@@ -15,7 +15,14 @@ sheetsweep validate contacts.csv \
   --max-blank-percent 10
 ```
 
-Readable and JSON reports use automation-friendly exit statuses. See [the validation guide](docs/validation.md) for details.
+Keep those rules reusable and reviewable with a versioned JSON policy:
+
+```bash
+sheetsweep check-policy examples/contacts-policy.json
+sheetsweep validate contacts.csv --policy examples/contacts-policy.json
+```
+
+Readable and JSON reports use automation-friendly exit statuses. See the [validation guide](docs/validation.md) and [policy guide](docs/policies.md) for details.
 
 ## Safety principles
 
@@ -24,6 +31,7 @@ Readable and JSON reports use automation-friendly exit statuses. See [the valida
 - **Local processing:** spreadsheet data stays on your machine.
 - **Privacy-aware reports:** validation results describe rules and counts, not cell contents.
 - **Deterministic results:** identical inputs and options produce identical output.
-- **Automation friendly:** reports are available as readable text or JSON.
+- **Strict configuration:** unknown or unsupported policy fields are rejected.
+- **Automation friendly:** reports and policy checks are available as readable text or JSON.
 
 Sheetsweep is being built as part of an eight-week automation project challenge.
