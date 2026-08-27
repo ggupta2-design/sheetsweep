@@ -16,6 +16,8 @@ class PolicyError(ValueError):
 class ValidationPolicy:
     """Validated rules loaded from a reusable policy file."""
 
+    schema_version: int = 1
+    name: str | None = None
     required_columns: tuple[str, ...] = ()
     unique_columns: tuple[str, ...] = ()
     max_blank_percent: float | None = None
@@ -49,10 +51,22 @@ def load_policy(path: str | Path) -> ValidationPolicy:
 
     if not isinstance(payload, dict):
         raise PolicyError("Policy root must be a JSON object")
-    allowed = {"required_columns", "unique_columns", "max_blank_percent"}
+    allowed = {"schema_version", "name", "required_columns", "unique_columns", "max_blank_percent"}
     unknown = sorted(set(payload) - allowed)
     if unknown:
         raise PolicyError(f"Unknown policy field(s): {', '.join(unknown)}")
+
+    version = payload.get("schema_version", 1)
+    if isinstance(version, bool) or not isinstance(version, int):
+        raise PolicyError("schema_version must be an integer")
+    if version != 1:
+        raise PolicyError(f"Unsupported policy schema_version: {version}")
+
+    name = payload.get("name")
+    if name is not None:
+        if not isinstance(name, str) or not name.strip():
+            raise PolicyError("name must be a nonblank string or null")
+        name = name.strip()
 
     required = _column_names(payload.get("required_columns", []), "required_columns")
     unique = _column_names(payload.get("unique_columns", []), "unique_columns")
@@ -65,6 +79,8 @@ def load_policy(path: str | Path) -> ValidationPolicy:
             raise PolicyError("max_blank_percent must be between 0 and 100")
 
     return ValidationPolicy(
+        schema_version=version,
+        name=name,
         required_columns=required,
         unique_columns=unique,
         max_blank_percent=threshold,
