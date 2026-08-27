@@ -10,6 +10,7 @@ from typing import Sequence
 from .clean import build_cleanup_plan
 from .loader import DatasetError, load_csv
 from .models import CleanupOptions
+from .policy import ValidationPolicy, load_policy, merge_policy
 from .profile import profile_dataset
 from .report import format_plan, format_profile, format_validation
 from .validation import validate_dataset
@@ -27,6 +28,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     validate = commands.add_parser("validate", help="check explicit data-quality expectations")
     validate.add_argument("source", type=Path)
+    validate.add_argument("--policy", type=Path, help="load reusable validation rules from JSON")
     validate.add_argument(
         "--require-column",
         action="append",
@@ -69,11 +71,18 @@ def run(argv: Sequence[str] | None = None) -> int:
             print(format_profile(profile_dataset(dataset), as_json=args.as_json))
             return 0
         if args.command == "validate":
+            base_policy = load_policy(args.policy) if args.policy else ValidationPolicy()
+            policy = merge_policy(
+                base_policy,
+                required_columns=tuple(args.require_column),
+                max_blank_percent=args.max_blank_percent,
+                unique_columns=tuple(args.unique_column),
+            )
             report = validate_dataset(
                 dataset,
-                required_columns=args.require_column,
-                max_blank_percent=args.max_blank_percent,
-                unique_columns=args.unique_column,
+                required_columns=policy.required_columns,
+                max_blank_percent=policy.max_blank_percent,
+                unique_columns=policy.unique_columns,
             )
             print(format_validation(report, as_json=args.as_json))
             return 0 if report.passed else 1
