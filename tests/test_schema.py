@@ -8,6 +8,7 @@ from sheetsweep.schema import (
     SchemaError,
     SchemaSnapshot,
     build_schema_snapshot,
+    compare_schema,
     load_schema,
     serialize_schema,
 )
@@ -84,3 +85,44 @@ def test_rejects_ambiguous_or_unsupported_snapshots(tmp_path, payload, message):
     path.write_text(json.dumps(payload), encoding="utf-8")
     with pytest.raises(SchemaError, match=message):
         load_schema(path)
+
+
+def test_detects_added_removed_and_type_changed_columns(tmp_path):
+    baseline = SchemaSnapshot(
+        schema_version=1,
+        columns=(
+            ColumnSchema("id", "number"),
+            ColumnSchema("name", "text"),
+            ColumnSchema("active", "boolean"),
+        ),
+    )
+    dataset = csv_dataset(tmp_path, "id,email,active\none,ada@example.com,true\n")
+    comparison = compare_schema(baseline, dataset)
+    assert comparison.matches is False
+    assert [(change.kind, change.column) for change in comparison.changes] == [
+        ("removed", "name"),
+        ("added", "email"),
+        ("type_changed", "id"),
+    ]
+
+
+def test_detects_column_reordering_only_when_sets_match(tmp_path):
+    baseline = SchemaSnapshot(
+        schema_version=1,
+        columns=(ColumnSchema("id", "number"), ColumnSchema("name", "text")),
+    )
+    comparison = compare_schema(baseline, csv_dataset(tmp_path, "name,id\nAda,1\n"))
+    assert [(change.kind, change.column) for change in comparison.changes] == [
+        ("reordered", "id"),
+        ("reordered", "name"),
+    ]
+
+
+def test_reports_matching_schema(tmp_path):
+    baseline = SchemaSnapshot(
+        schema_version=1,
+        columns=(ColumnSchema("id", "number"), ColumnSchema("name", "text")),
+    )
+    comparison = compare_schema(baseline, csv_dataset(tmp_path, "id,name\n2,Lin\n"))
+    assert comparison.matches is True
+    assert comparison.changes == ()
