@@ -43,6 +43,7 @@ def discover_csv_files(
     *,
     recursive: bool = False,
     pattern: str = "*.csv",
+    max_files: int = 100,
 ) -> tuple[Path, ...]:
     """Find matching files deterministically without opening them."""
 
@@ -51,6 +52,8 @@ def discover_csv_files(
         raise BatchError(f"Batch directory does not exist: {directory}")
     if not directory.is_dir():
         raise BatchError(f"Batch path is not a directory: {directory}")
+    if isinstance(max_files, bool) or max_files < 1:
+        raise BatchError("max_files must be a positive integer")
     if not pattern.strip():
         raise BatchError("Batch pattern cannot be blank")
     candidate = Path(pattern)
@@ -58,12 +61,17 @@ def discover_csv_files(
         raise BatchError("Batch pattern must stay within the selected directory")
 
     matches = directory.rglob(pattern) if recursive else directory.glob(pattern)
-    return tuple(
+    discovered = tuple(
         sorted(
             (path for path in matches if path.is_file()),
             key=lambda path: path.relative_to(directory).as_posix().casefold(),
         )
     )
+    if len(discovered) > max_files:
+        raise BatchError(
+            f"Batch matched {len(discovered)} files, exceeding max_files={max_files}"
+        )
+    return discovered
 
 
 def audit_directory(
@@ -71,11 +79,17 @@ def audit_directory(
     *,
     recursive: bool = False,
     pattern: str = "*.csv",
+    max_files: int = 100,
 ) -> BatchReport:
     """Audit matching CSV files while isolating per-file input errors."""
 
     directory = Path(root)
-    paths = discover_csv_files(directory, recursive=recursive, pattern=pattern)
+    paths = discover_csv_files(
+        directory,
+        recursive=recursive,
+        pattern=pattern,
+        max_files=max_files,
+    )
     results: list[BatchFileResult] = []
     for path in paths:
         relative = path.relative_to(directory).as_posix()
