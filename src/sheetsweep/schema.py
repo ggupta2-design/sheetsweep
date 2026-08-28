@@ -125,3 +125,60 @@ def load_schema(path: str | Path) -> SchemaSnapshot:
         seen.add(name)
         columns.append(ColumnSchema(name=name, inferred_type=inferred_type))
     return SchemaSnapshot(schema_version=1, columns=tuple(columns))
+
+
+def compare_schema(snapshot: SchemaSnapshot, dataset: Dataset) -> SchemaComparison:
+    """Compare current structure with a saved snapshot without exposing values."""
+
+    current = build_schema_snapshot(dataset)
+    expected_by_name = {column.name: column for column in snapshot.columns}
+    actual_by_name = {column.name: column for column in current.columns}
+    changes: list[SchemaChange] = []
+
+    for column in snapshot.columns:
+        if column.name not in actual_by_name:
+            changes.append(
+                SchemaChange(
+                    kind="removed",
+                    column=column.name,
+                    expected=column.inferred_type,
+                )
+            )
+    for column in current.columns:
+        if column.name not in expected_by_name:
+            changes.append(
+                SchemaChange(
+                    kind="added",
+                    column=column.name,
+                    actual=column.inferred_type,
+                )
+            )
+    for column in snapshot.columns:
+        actual = actual_by_name.get(column.name)
+        if actual is not None and actual.inferred_type != column.inferred_type:
+            changes.append(
+                SchemaChange(
+                    kind="type_changed",
+                    column=column.name,
+                    expected=column.inferred_type,
+                    actual=actual.inferred_type,
+                )
+            )
+
+    expected_names = tuple(column.name for column in snapshot.columns)
+    actual_names = tuple(column.name for column in current.columns)
+    if set(expected_names) == set(actual_names) and expected_names != actual_names:
+        actual_positions = {name: index for index, name in enumerate(actual_names)}
+        for index, name in enumerate(expected_names):
+            actual_index = actual_positions[name]
+            if actual_index != index:
+                changes.append(
+                    SchemaChange(
+                        kind="reordered",
+                        column=name,
+                        expected=index,
+                        actual=actual_index,
+                    )
+                )
+
+    return SchemaComparison(matches=not changes, changes=tuple(changes))
