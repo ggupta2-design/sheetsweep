@@ -94,3 +94,16 @@ def test_formats_batch_reports_for_people_and_automation(tmp_path):
 def test_formats_empty_batch_results(tmp_path):
     report = audit_directory(tmp_path)
     assert "no matching files" in format_batch_report(report)
+
+
+def test_enforces_batch_file_limits_before_loading(tmp_path):
+    for index in range(3):
+        (tmp_path / f"{index}.csv").write_text("id\n1\n", encoding="utf-8")
+    with pytest.raises(BatchError, match="exceeding max_files=2"):
+        audit_directory(tmp_path, max_files=2)
+
+
+@pytest.mark.parametrize("limit", [0, -1, True])
+def test_rejects_invalid_batch_file_limits(tmp_path, limit):
+    with pytest.raises(BatchError, match="positive integer"):
+        discover_csv_files(tmp_path, max_files=limit)
