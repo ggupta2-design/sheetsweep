@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -235,3 +237,37 @@ def format_comparison(comparison: SchemaComparison, *, as_json: bool = False) ->
                 detail += f" actual={change.actual}"
             lines.append(f"- {change.kind} [{change.column}]{detail}")
     return "\n".join(lines)
+
+
+def write_schema(
+    snapshot: SchemaSnapshot,
+    output: str | Path,
+    *,
+    overwrite: bool = False,
+) -> Path:
+    """Write a snapshot atomically while protecting existing files."""
+
+    destination = Path(output)
+    if destination.exists() and not overwrite:
+        raise SchemaError(f"Schema snapshot already exists: {destination}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".tmp",
+            delete=False,
+        ) as handle:
+            temporary = Path(handle.name)
+            handle.write(serialize_schema(snapshot))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary, destination)
+    except OSError as exc:
+        if temporary and temporary.exists():
+            temporary.unlink()
+        raise SchemaError(f"Could not write schema snapshot: {destination}") from exc
+    return destination
