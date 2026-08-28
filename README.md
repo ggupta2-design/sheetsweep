@@ -29,13 +29,20 @@ sheetsweep snapshot-schema contacts.csv --output contacts.schema.json --apply
 sheetsweep check-schema incoming.csv --schema contacts.schema.json
 ```
 
-Readable and JSON reports use automation-friendly exit statuses. See the [validation guide](docs/validation.md), [policy guide](docs/policies.md), and [schema drift guide](docs/schema-drift.md) for details.
+Audit a folder of CSV imports in one bounded, read-only run:
+
+```bash
+sheetsweep batch-audit imports/ --recursive --max-files 50 --json
+```
+
+Readable and JSON reports use automation-friendly exit statuses. See the [validation guide](docs/validation.md), [policy guide](docs/policies.md), [schema drift guide](docs/schema-drift.md), and [batch audit guide](docs/batch-audits.md) for details.
 
 ## Safety principles
 
 - **Preview first:** audits, validations, and cleanup plans never modify the source file.
 - **No silent overwrite:** cleaned output must be a new path unless replacement is explicitly allowed.
 - **Local processing:** spreadsheet data stays on your machine.
+- **Bounded batch work:** folder audits enforce a reviewed maximum file count.
 - **Privacy-aware reports:** validation and schema results never include cell contents.
 - **Value-free baselines:** schema snapshots contain column names, order, and inferred types only.
 - **Deterministic results:** identical inputs and options produce identical output.
