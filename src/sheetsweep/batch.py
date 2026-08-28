@@ -5,6 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from .loader import DatasetError, load_csv
+from .profile import profile_dataset
+
 
 class BatchError(ValueError):
     """Raised when a batch audit request is unsafe or invalid."""
@@ -59,4 +62,47 @@ def discover_csv_files(
             (path for path in matches if path.is_file()),
             key=lambda path: path.relative_to(directory).as_posix().casefold(),
         )
+    )
+
+
+def audit_directory(
+    root: str | Path,
+    *,
+    recursive: bool = False,
+    pattern: str = "*.csv",
+) -> BatchReport:
+    """Audit matching CSV files while isolating per-file input errors."""
+
+    directory = Path(root)
+    paths = discover_csv_files(directory, recursive=recursive, pattern=pattern)
+    results: list[BatchFileResult] = []
+    for path in paths:
+        relative = path.relative_to(directory).as_posix()
+        try:
+            profile = profile_dataset(load_csv(path))
+            results.append(
+                BatchFileResult(
+                    path=relative,
+                    status="ok",
+                    row_count=profile.row_count,
+                    column_count=profile.column_count,
+                    duplicate_rows=profile.duplicate_rows,
+                )
+            )
+        except DatasetError as exc:
+            results.append(
+                BatchFileResult(
+                    path=relative,
+                    status="error",
+                    error=str(exc),
+                )
+            )
+    failed = sum(result.status == "error" for result in results)
+    return BatchReport(
+        root=str(directory),
+        recursive=recursive,
+        pattern=pattern,
+        files=tuple(results),
+        succeeded=len(results) - failed,
+        failed=failed,
     )
