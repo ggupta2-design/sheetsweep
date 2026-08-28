@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .loader import DatasetError, load_csv
@@ -106,3 +107,45 @@ def audit_directory(
         succeeded=len(results) - failed,
         failed=failed,
     )
+
+
+def batch_payload(report: BatchReport) -> dict[str, object]:
+    """Return a stable value-free batch summary."""
+
+    return {
+        "root": report.root,
+        "recursive": report.recursive,
+        "pattern": report.pattern,
+        "file_count": len(report.files),
+        "succeeded": report.succeeded,
+        "failed": report.failed,
+        "files": [asdict(result) for result in report.files],
+    }
+
+
+def format_batch_report(report: BatchReport, *, as_json: bool = False) -> str:
+    """Format a batch audit for people or automation."""
+
+    payload = batch_payload(report)
+    if as_json:
+        return json.dumps(payload, indent=2, sort_keys=True)
+    lines = [
+        f"Root: {report.root}",
+        f"Files: {len(report.files)}",
+        f"Succeeded: {report.succeeded}",
+        f"Failed: {report.failed}",
+    ]
+    if not report.files:
+        lines.append("Results: no matching files")
+    else:
+        lines.append("Results:")
+        for result in report.files:
+            if result.status == "ok":
+                lines.append(
+                    f"- OK {result.path}: {result.row_count} rows, "
+                    f"{result.column_count} columns, "
+                    f"{result.duplicate_rows} exact duplicates"
+                )
+            else:
+                lines.append(f"- ERROR {result.path}: {result.error}")
+    return "\n".join(lines)
