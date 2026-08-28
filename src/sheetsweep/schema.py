@@ -182,3 +182,56 @@ def compare_schema(snapshot: SchemaSnapshot, dataset: Dataset) -> SchemaComparis
                 )
 
     return SchemaComparison(matches=not changes, changes=tuple(changes))
+
+
+def format_schema(snapshot: SchemaSnapshot, *, as_json: bool = False) -> str:
+    """Format a schema snapshot for preview or storage."""
+
+    if as_json:
+        return serialize_schema(snapshot).rstrip()
+    lines = [
+        f"Schema version: {snapshot.schema_version}",
+        f"Columns: {len(snapshot.columns)}",
+    ]
+    lines.extend(
+        f"- {column.name}: {column.inferred_type}" for column in snapshot.columns
+    )
+    return "\n".join(lines)
+
+
+def comparison_payload(comparison: SchemaComparison) -> dict[str, Any]:
+    """Return an automation-friendly schema comparison."""
+
+    return {
+        "matches": comparison.matches,
+        "changes": [
+            {
+                "kind": change.kind,
+                "column": change.column,
+                "expected": change.expected,
+                "actual": change.actual,
+            }
+            for change in comparison.changes
+        ],
+    }
+
+
+def format_comparison(comparison: SchemaComparison, *, as_json: bool = False) -> str:
+    """Format schema drift without including spreadsheet values."""
+
+    payload = comparison_payload(comparison)
+    if as_json:
+        return json.dumps(payload, indent=2, sort_keys=True)
+    lines = [f"Result: {'MATCH' if comparison.matches else 'DRIFT'}"]
+    if comparison.matches:
+        lines.append("Changes: none")
+    else:
+        lines.append(f"Changes: {len(comparison.changes)}")
+        for change in comparison.changes:
+            detail = ""
+            if change.expected is not None:
+                detail += f" expected={change.expected}"
+            if change.actual is not None:
+                detail += f" actual={change.actual}"
+            lines.append(f"- {change.kind} [{change.column}]{detail}")
+    return "\n".join(lines)
