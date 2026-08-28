@@ -22,14 +22,22 @@ sheetsweep check-policy examples/contacts-policy.json
 sheetsweep validate contacts.csv --policy examples/contacts-policy.json
 ```
 
-Readable and JSON reports use automation-friendly exit statuses. See the [validation guide](docs/validation.md) and [policy guide](docs/policies.md) for details.
+Catch structural changes with a value-free schema baseline:
+
+```bash
+sheetsweep snapshot-schema contacts.csv --output contacts.schema.json --apply
+sheetsweep check-schema incoming.csv --schema contacts.schema.json
+```
+
+Readable and JSON reports use automation-friendly exit statuses. See the [validation guide](docs/validation.md), [policy guide](docs/policies.md), and [schema drift guide](docs/schema-drift.md) for details.
 
 ## Safety principles
 
 - **Preview first:** audits, validations, and cleanup plans never modify the source file.
 - **No silent overwrite:** cleaned output must be a new path unless replacement is explicitly allowed.
 - **Local processing:** spreadsheet data stays on your machine.
-- **Privacy-aware reports:** validation results describe rules and counts, not cell contents.
+- **Privacy-aware reports:** validation and schema results never include cell contents.
+- **Value-free baselines:** schema snapshots contain column names, order, and inferred types only.
 - **Deterministic results:** identical inputs and options produce identical output.
 - **Strict configuration:** unknown or unsupported policy fields are rejected.
 - **Automation friendly:** reports and policy checks are available as readable text or JSON.
