@@ -159,3 +159,69 @@ def test_check_policy_validates_without_reading_csv(tmp_path, capsys):
     policy.write_text('{"schema_version": 99}', encoding="utf-8")
     assert run(["check-policy", str(policy)]) == 2
     assert "Unsupported policy schema_version" in capsys.readouterr().err
+
+
+def test_schema_snapshot_is_preview_first_and_writes_explicitly(tmp_path, capsys):
+    source = tmp_path / "input.csv"
+    source.write_text("id,name\n1,Ada\n", encoding="utf-8")
+    output = tmp_path / "schema.json"
+
+    assert run(["snapshot-schema", str(source), "--output", str(output)]) == 0
+    captured = capsys.readouterr()
+    assert "Schema version: 1" in captured.out
+    assert "Preview only" in captured.err
+    assert not output.exists()
+
+    assert run(
+        [
+            "snapshot-schema",
+            str(source),
+            "--output",
+            str(output),
+            "--apply",
+            "--json",
+        ]
+    ) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["columns"][0] == {"name": "id", "inferred_type": "number"}
+    assert output.exists()
+
+
+def test_check_schema_uses_drift_exit_statuses(tmp_path, capsys):
+    source = tmp_path / "input.csv"
+    source.write_text("id,name\n1,Ada\n", encoding="utf-8")
+    schema = tmp_path / "schema.json"
+    assert run(
+        [
+            "snapshot-schema",
+            str(source),
+            "--output",
+            str(schema),
+            "--apply",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    assert run(["check-schema", str(source), "--schema", str(schema), "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["matches"] is True
+
+    source.write_text("id,email\none,ada@example.com\n", encoding="utf-8")
+    assert run(["check-schema", str(source), "--schema", str(schema), "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["matches"] is False
+    assert {change["kind"] for change in payload["changes"]} == {
+        "removed",
+        "added",
+        "type_changed",
+    }
+
+
+def test_schema_commands_report_input_errors(tmp_path, capsys):
+    source = tmp_path / "input.csv"
+    source.write_text("id\n1\n", encoding="utf-8")
+    assert run(["snapshot-schema", str(source), "--apply"]) == 2
+    assert "--output is required" in capsys.readouterr().err
+    assert run(
+        ["check-schema", str(source), "--schema", str(tmp_path / "missing.json")]
+    ) == 2
+    assert "does not exist" in capsys.readouterr().err
