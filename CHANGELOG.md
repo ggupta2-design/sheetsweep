@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 — 2026-08-28
+
+- Added deterministic, value-free CSV schema snapshots.
+- Added strict snapshot serialization and schema-version validation.
+- Added detection for added, removed, reordered, and type-changed columns.
+- Added privacy-safe readable and JSON drift reports.
+- Added collision-safe atomic snapshot writes and preview-first CLI commands.
+- Added automation-friendly schema match, drift, and input-error statuses.
+- Added multi-version tests and schema drift safety guidance.
+
 ## 0.3.0 — 2026-08-27
 
 - Added strict, reusable JSON validation policies.
