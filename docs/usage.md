@@ -67,3 +67,13 @@ sheetsweep check-schema incoming.csv \
 ```
 
 Snapshot creation is preview-only without `--apply`. Schema checks return status 1 when columns are added, removed, reordered, or inferred types change. See [schema-drift.md](schema-drift.md) for details and privacy boundaries.
+
+
+Audit a bounded folder of CSV files without changing them:
+
+```bash
+sheetsweep batch-audit imports/ --max-files 50
+sheetsweep batch-audit imports/ --recursive --pattern "daily-*.csv" --json
+```
+
+Invalid files are isolated in the report, and the command returns status 1 when any matching CSV fails to load. See [batch-audits.md](batch-audits.md) for discovery and privacy safeguards.
