@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.5.0 — 2026-08-28
+
+- Added deterministic folder-level CSV discovery.
+- Added recursive and file-pattern batch selection.
+- Added per-file audit summaries with isolated input failures.
+- Added readable and JSON batch reports without cell contents.
+- Added explicit maximum file limits before any CSV is opened.
+- Added automation-friendly batch success, partial-failure, and input-error statuses.
+- Added multi-version tests and batch privacy guidance.
+
 ## 0.4.0 — 2026-08-28
 
 - Added deterministic, value-free CSV schema snapshots.
