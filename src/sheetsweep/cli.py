@@ -13,6 +13,15 @@ from .models import CleanupOptions
 from .policy import ValidationPolicy, format_policy, load_policy, merge_policy
 from .profile import profile_dataset
 from .report import format_plan, format_profile, format_validation
+from .schema import (
+    SchemaError,
+    build_schema_snapshot,
+    compare_schema,
+    format_comparison,
+    format_schema,
+    load_schema,
+    write_schema,
+)
 from .validation import validate_dataset
 from .writer import OutputError, write_plan
 
@@ -28,6 +37,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     check_policy.add_argument("policy", type=Path)
     check_policy.add_argument("--json", action="store_true", dest="as_json")
+
+    snapshot_schema = commands.add_parser(
+        "snapshot-schema",
+        help="preview or save a value-free CSV schema baseline",
+    )
+    snapshot_schema.add_argument("source", type=Path)
+    snapshot_schema.add_argument("--output", type=Path)
+    snapshot_schema.add_argument("--json", action="store_true", dest="as_json")
+    snapshot_schema.add_argument("--apply", action="store_true", help="write the baseline")
+    snapshot_schema.add_argument("--overwrite", action="store_true")
+
+    check_schema = commands.add_parser(
+        "check-schema",
+        help="compare a CSV with a saved schema baseline",
+    )
+    check_schema.add_argument("source", type=Path)
+    check_schema.add_argument("--schema", type=Path, required=True)
+    check_schema.add_argument("--json", action="store_true", dest="as_json")
 
     audit = commands.add_parser("audit", help="inspect a CSV without changing it")
     audit.add_argument("source", type=Path)
@@ -81,6 +108,21 @@ def run(argv: Sequence[str] | None = None) -> int:
         if args.command == "audit":
             print(format_profile(profile_dataset(dataset), as_json=args.as_json))
             return 0
+        if args.command == "snapshot-schema":
+            snapshot = build_schema_snapshot(dataset)
+            print(format_schema(snapshot, as_json=args.as_json))
+            if not args.apply:
+                print("Preview only; no schema snapshot was written.", file=sys.stderr)
+                return 0
+            if args.output is None:
+                raise SchemaError("--output is required with --apply")
+            written = write_schema(snapshot, args.output, overwrite=args.overwrite)
+            print(f"Wrote schema snapshot: {written}", file=sys.stderr)
+            return 0
+        if args.command == "check-schema":
+            comparison = compare_schema(load_schema(args.schema), dataset)
+            print(format_comparison(comparison, as_json=args.as_json))
+            return 0 if comparison.matches else 1
         if args.command == "validate":
             base_policy = load_policy(args.policy) if args.policy else ValidationPolicy()
             policy = merge_policy(
