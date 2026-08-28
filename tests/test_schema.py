@@ -13,6 +13,7 @@ from sheetsweep.schema import (
     format_schema,
     load_schema,
     serialize_schema,
+    write_schema,
 )
 
 
@@ -151,3 +152,24 @@ def test_formats_schema_and_drift_without_values(tmp_path):
         "added",
         "type_changed",
     }
+
+
+def test_writes_schema_atomically_and_protects_existing_files(tmp_path):
+    snapshot = SchemaSnapshot(
+        schema_version=1,
+        columns=(ColumnSchema("id", "number"),),
+    )
+    output = tmp_path / "baselines" / "schema.json"
+    assert write_schema(snapshot, output) == output
+    assert load_schema(output) == snapshot
+
+    with pytest.raises(SchemaError, match="already exists"):
+        write_schema(
+            SchemaSnapshot(1, (ColumnSchema("email", "text"),)),
+            output,
+        )
+    assert load_schema(output) == snapshot
+
+    replacement = SchemaSnapshot(1, (ColumnSchema("email", "text"),))
+    write_schema(replacement, output, overwrite=True)
+    assert load_schema(output) == replacement
