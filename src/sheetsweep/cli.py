@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
+from .batch import audit_directory, format_batch_report
 from .clean import build_cleanup_plan
 from .loader import DatasetError, load_csv
 from .models import CleanupOptions
@@ -30,6 +31,16 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="sheetsweep", description="Audit and clean CSV files safely")
     parser.add_argument("--version", action="version", version="sheetsweep 0.4.0")
     commands = parser.add_subparsers(dest="command", required=True)
+
+    batch_audit = commands.add_parser(
+        "batch-audit",
+        help="audit a bounded folder of CSV files without changing them",
+    )
+    batch_audit.add_argument("root", type=Path)
+    batch_audit.add_argument("--recursive", action="store_true")
+    batch_audit.add_argument("--pattern", default="*.csv")
+    batch_audit.add_argument("--max-files", type=int, default=100)
+    batch_audit.add_argument("--json", action="store_true", dest="as_json")
 
     check_policy = commands.add_parser(
         "check-policy",
@@ -100,6 +111,15 @@ def build_parser() -> argparse.ArgumentParser:
 def run(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "batch-audit":
+            report = audit_directory(
+                args.root,
+                recursive=args.recursive,
+                pattern=args.pattern,
+                max_files=args.max_files,
+            )
+            print(format_batch_report(report, as_json=args.as_json))
+            return 0 if report.failed == 0 else 1
         if args.command == "check-policy":
             print(format_policy(load_policy(args.policy), as_json=args.as_json))
             return 0
