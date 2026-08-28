@@ -9,6 +9,8 @@ from sheetsweep.schema import (
     SchemaSnapshot,
     build_schema_snapshot,
     compare_schema,
+    format_comparison,
+    format_schema,
     load_schema,
     serialize_schema,
 )
@@ -126,3 +128,26 @@ def test_reports_matching_schema(tmp_path):
     comparison = compare_schema(baseline, csv_dataset(tmp_path, "id,name\n2,Lin\n"))
     assert comparison.matches is True
     assert comparison.changes == ()
+
+
+def test_formats_schema_and_drift_without_values(tmp_path):
+    baseline = SchemaSnapshot(
+        schema_version=1,
+        columns=(ColumnSchema("id", "number"), ColumnSchema("name", "text")),
+    )
+    dataset = csv_dataset(tmp_path, "id,email\none,private@example.com\n")
+    comparison = compare_schema(baseline, dataset)
+
+    schema_text = format_schema(baseline)
+    assert "- id: number" in schema_text
+    drift_text = format_comparison(comparison)
+    assert "Result: DRIFT" in drift_text
+    assert "private@example.com" not in drift_text
+
+    payload = json.loads(format_comparison(comparison, as_json=True))
+    assert payload["matches"] is False
+    assert {change["kind"] for change in payload["changes"]} == {
+        "removed",
+        "added",
+        "type_changed",
+    }
