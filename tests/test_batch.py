@@ -2,7 +2,12 @@ import json
 
 import pytest
 
-from sheetsweep.batch import BatchError, audit_directory, discover_csv_files
+from sheetsweep.batch import (
+    BatchError,
+    audit_directory,
+    discover_csv_files,
+    format_batch_report,
+)
 
 
 def test_discovers_csv_files_deterministically(tmp_path):
@@ -66,3 +71,26 @@ def test_batch_audit_never_exposes_cell_values(tmp_path):
     )
     report = audit_directory(tmp_path)
     assert secret not in repr(report)
+
+
+def test_formats_batch_reports_for_people_and_automation(tmp_path):
+    (tmp_path / "good.csv").write_text("id\n1\n", encoding="utf-8")
+    (tmp_path / "bad.csv").write_text("", encoding="utf-8")
+    report = audit_directory(tmp_path)
+
+    text = format_batch_report(report)
+    assert "Succeeded: 1" in text
+    assert "Failed: 1" in text
+    assert "- OK good.csv" in text
+    assert "- ERROR bad.csv" in text
+
+    payload = json.loads(format_batch_report(report, as_json=True))
+    assert payload["file_count"] == 2
+    assert payload["succeeded"] == 1
+    assert payload["failed"] == 1
+    assert {item["status"] for item in payload["files"]} == {"ok", "error"}
+
+
+def test_formats_empty_batch_results(tmp_path):
+    report = audit_directory(tmp_path)
+    assert "no matching files" in format_batch_report(report)
