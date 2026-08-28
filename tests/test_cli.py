@@ -225,3 +225,47 @@ def test_schema_commands_report_input_errors(tmp_path, capsys):
         ["check-schema", str(source), "--schema", str(tmp_path / "missing.json")]
     ) == 2
     assert "does not exist" in capsys.readouterr().err
+
+
+def test_batch_audit_reports_successes_and_failures(tmp_path, capsys):
+    (tmp_path / "good.csv").write_text("id\n1\n", encoding="utf-8")
+    (tmp_path / "bad.csv").write_text("", encoding="utf-8")
+
+    assert run(["batch-audit", str(tmp_path), "--json"]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["file_count"] == 2
+    assert (payload["succeeded"], payload["failed"]) == (1, 1)
+
+    (tmp_path / "bad.csv").unlink()
+    assert run(["batch-audit", str(tmp_path)]) == 0
+    assert "Succeeded: 1" in capsys.readouterr().out
+
+
+def test_batch_audit_supports_recursive_patterns_and_limits(tmp_path, capsys):
+    nested = tmp_path / "nested"
+    nested.mkdir()
+    (nested / "daily.csv").write_text("id\n1\n", encoding="utf-8")
+    (nested / "archive.csv").write_text("id\n2\n", encoding="utf-8")
+
+    assert run(
+        [
+            "batch-audit",
+            str(tmp_path),
+            "--recursive",
+            "--pattern",
+            "daily-*.csv",
+            "--json",
+        ]
+    ) == 0
+    assert json.loads(capsys.readouterr().out)["file_count"] == 0
+
+    assert run(
+        [
+            "batch-audit",
+            str(tmp_path),
+            "--recursive",
+            "--max-files",
+            "1",
+        ]
+    ) == 2
+    assert "exceeding max_files=1" in capsys.readouterr().err
