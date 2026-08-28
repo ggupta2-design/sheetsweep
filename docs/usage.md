@@ -53,3 +53,17 @@ sheetsweep validate contacts.csv --policy examples/contacts-policy.json
 ```
 
 You can add one-off `--require-column` and `--unique-column` rules alongside a policy. A command-line blank threshold overrides the policy threshold for that run. See [policies.md](policies.md) for the strict JSON schema and merge behavior.
+
+
+Create and verify a value-free schema baseline:
+
+```bash
+sheetsweep snapshot-schema contacts.csv \
+  --output baselines/contacts.schema.json \
+  --apply
+
+sheetsweep check-schema incoming.csv \
+  --schema baselines/contacts.schema.json
+```
+
+Snapshot creation is preview-only without `--apply`. Schema checks return status 1 when columns are added, removed, reordered, or inferred types change. See [schema-drift.md](schema-drift.md) for details and privacy boundaries.
