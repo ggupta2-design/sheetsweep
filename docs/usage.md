@@ -77,3 +77,26 @@ sheetsweep batch-audit imports/ --recursive --pattern "daily-*.csv" --json
 ```
 
 Invalid files are isolated in the report, and the command returns status 1 when any matching CSV fails to load. See [batch-audits.md](batch-audits.md) for discovery and privacy safeguards.
+
+
+
+Apply one reusable policy to a bounded folder:
+
+```bash
+sheetsweep batch-validate imports/ \
+  --policy examples/contacts-policy.json \
+  --max-files 50
+
+sheetsweep batch-validate imports/ \
+  --policy examples/contacts-policy.json \
+  --recursive \
+  --pattern "daily-*.csv" \
+  --json
+```
+
+Quality failures and unreadable CSV files are isolated per file. The command
+returns status 1 when any selected file fails or cannot be loaded, and status 2
+for an invalid policy or unsafe batch request. One-run rule overrides use the
+same `--require-column`, `--unique-column`, and `--max-blank-percent`
+options as single-file validation. See
+[batch-validation.md](batch-validation.md) for report and privacy details.
