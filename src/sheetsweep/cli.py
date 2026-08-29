@@ -56,6 +56,26 @@ def build_parser() -> argparse.ArgumentParser:
     batch_validate.add_argument("--recursive", action="store_true")
     batch_validate.add_argument("--pattern", default="*.csv")
     batch_validate.add_argument("--max-files", type=int, default=100)
+    batch_validate.add_argument(
+        "--require-column",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="add a required column to the policy; may be repeated",
+    )
+    batch_validate.add_argument(
+        "--unique-column",
+        action="append",
+        default=[],
+        metavar="NAME",
+        help="add a unique column to the policy; may be repeated",
+    )
+    batch_validate.add_argument(
+        "--max-blank-percent",
+        type=float,
+        metavar="PERCENT",
+        help="override the policy blank-rate limit",
+    )
     batch_validate.add_argument("--json", action="store_true", dest="as_json")
 
     check_policy = commands.add_parser(
@@ -137,7 +157,12 @@ def run(argv: Sequence[str] | None = None) -> int:
             print(format_batch_report(report, as_json=args.as_json))
             return 0 if report.failed == 0 else 1
         if args.command == "batch-validate":
-            policy = load_policy(args.policy)
+            policy = merge_policy(
+                load_policy(args.policy),
+                required_columns=tuple(args.require_column),
+                unique_columns=tuple(args.unique_column),
+                max_blank_percent=args.max_blank_percent,
+            )
             report = validate_directory(
                 args.root,
                 policy,
