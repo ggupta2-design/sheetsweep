@@ -1,6 +1,14 @@
 """Preview-first CSV auditing, validation, and cleanup automation."""
 
-from .batch import BatchError, BatchReport, audit_directory
+from .batch import (
+    BatchError,
+    BatchReport,
+    BatchValidationFileResult,
+    BatchValidationIssue,
+    BatchValidationReport,
+    audit_directory,
+    validate_directory,
+)
 from .models import CleanupOptions, Dataset, Profile
 from .policy import PolicyError, ValidationPolicy, load_policy
 from .schema import (
@@ -17,6 +25,9 @@ from .validation import ValidationIssue, ValidationReport, validate_dataset
 __all__ = [
     "BatchError",
     "BatchReport",
+    "BatchValidationFileResult",
+    "BatchValidationIssue",
+    "BatchValidationReport",
     "CleanupOptions",
     "ColumnSchema",
     "Dataset",
@@ -34,5 +45,6 @@ __all__ = [
     "load_policy",
     "load_schema",
     "validate_dataset",
+    "validate_directory",
 ]
-__version__ = "0.5.0"
+__version__ = "0.6.0"
