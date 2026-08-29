@@ -269,3 +269,63 @@ def format_batch_report(report: BatchReport, *, as_json: bool = False) -> str:
             else:
                 lines.append(f"- ERROR {result.path}: {result.error}")
     return "\n".join(lines)
+
+
+
+def batch_validation_payload(report: BatchValidationReport) -> dict[str, object]:
+    """Return a stable value-free policy validation summary."""
+
+    return {
+        "root": report.root,
+        "recursive": report.recursive,
+        "pattern": report.pattern,
+        "policy_name": report.policy_name,
+        "file_count": len(report.files),
+        "passed": report.passed,
+        "failed": report.failed,
+        "errors": report.errors,
+        "files": [asdict(result) for result in report.files],
+    }
+
+
+def format_batch_validation(
+    report: BatchValidationReport,
+    *,
+    as_json: bool = False,
+) -> str:
+    """Format folder policy results for people or automation."""
+
+    payload = batch_validation_payload(report)
+    if as_json:
+        return json.dumps(payload, indent=2, sort_keys=True)
+
+    lines = [
+        f"Root: {report.root}",
+        f"Policy: {report.policy_name or 'unnamed'}",
+        f"Files: {len(report.files)}",
+        f"Passed: {report.passed}",
+        f"Failed: {report.failed}",
+        f"Input errors: {report.errors}",
+    ]
+    if not report.files:
+        lines.append("Results: no matching files")
+        return "\n".join(lines)
+
+    lines.append("Results:")
+    for result in report.files:
+        if result.status == "passed":
+            lines.append(f"- PASS {result.path}: {result.row_count} rows")
+        elif result.status == "error":
+            lines.append(f"- ERROR {result.path}: {result.error}")
+        else:
+            lines.append(
+                f"- FAIL {result.path}: {result.issue_count} issue(s) "
+                f"({', '.join(result.rules)})"
+            )
+            for issue in result.issues:
+                column = f" [{issue.column}]" if issue.column else ""
+                lines.append(
+                    f"  - {issue.rule}{column}: count={issue.count}, "
+                    f"severity={issue.severity}"
+                )
+    return "\n".join(lines)
