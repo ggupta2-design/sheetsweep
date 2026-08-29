@@ -7,7 +7,9 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from .loader import DatasetError, load_csv
+from .policy import ValidationPolicy
 from .profile import profile_dataset
+from .validation import validate_dataset
 
 
 class BatchError(ValueError):
@@ -36,6 +38,32 @@ class BatchReport:
     files: tuple[BatchFileResult, ...]
     succeeded: int
     failed: int
+
+
+@dataclass(frozen=True)
+class BatchValidationFileResult:
+    """Value-free policy validation outcome for one CSV file."""
+
+    path: str
+    status: str
+    row_count: int | None = None
+    issue_count: int = 0
+    rules: tuple[str, ...] = ()
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class BatchValidationReport:
+    """Aggregate policy validation result for a bounded CSV folder."""
+
+    root: str
+    recursive: bool
+    pattern: str
+    policy_name: str | None
+    files: tuple[BatchValidationFileResult, ...]
+    passed: int
+    failed: int
+    errors: int
 
 
 def discover_csv_files(
@@ -120,6 +148,64 @@ def audit_directory(
         files=tuple(results),
         succeeded=len(results) - failed,
         failed=failed,
+    )
+
+
+def validate_directory(
+    root: str | Path,
+    policy: ValidationPolicy,
+    *,
+    recursive: bool = False,
+    pattern: str = "*.csv",
+    max_files: int = 100,
+) -> BatchValidationReport:
+    """Apply one validated policy while isolating per-file input errors."""
+
+    directory = Path(root)
+    paths = discover_csv_files(
+        directory,
+        recursive=recursive,
+        pattern=pattern,
+        max_files=max_files,
+    )
+    results: list[BatchValidationFileResult] = []
+    for path in paths:
+        relative = path.relative_to(directory).as_posix()
+        try:
+            dataset = load_csv(path)
+            validation = validate_dataset(
+                dataset,
+                required_columns=policy.required_columns,
+                unique_columns=policy.unique_columns,
+                max_blank_percent=policy.max_blank_percent,
+            )
+            results.append(
+                BatchValidationFileResult(
+                    path=relative,
+                    status="passed" if validation.passed else "failed",
+                    row_count=validation.row_count,
+                    issue_count=len(validation.issues),
+                    rules=tuple(dict.fromkeys(issue.rule for issue in validation.issues)),
+                )
+            )
+        except DatasetError as exc:
+            results.append(
+                BatchValidationFileResult(
+                    path=relative,
+                    status="error",
+                    error=str(exc),
+                )
+            )
+
+    return BatchValidationReport(
+        root=str(directory),
+        recursive=recursive,
+        pattern=pattern,
+        policy_name=policy.name,
+        files=tuple(results),
+        passed=sum(result.status == "passed" for result in results),
+        failed=sum(result.status == "failed" for result in results),
+        errors=sum(result.status == "error" for result in results),
     )
 
 
