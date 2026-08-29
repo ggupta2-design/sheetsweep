@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.6.0 — 2026-08-29
+
+- Added reusable policy validation across bounded CSV folders.
+- Added distinct pass, quality-failure, and input-error outcomes per file.
+- Added privacy-safe issue summaries with rules, columns, counts, and severities.
+- Added readable and JSON batch validation reports.
+- Added command-line policy extensions and blank-rate overrides.
+- Preserved deterministic discovery, recursive patterns, and preflight file limits.
+- Added automation-friendly exit statuses, tests, and safety documentation.
+
 ## 0.5.0 — 2026-08-28
 
 - Added deterministic folder-level CSV discovery.
