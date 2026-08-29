@@ -9,6 +9,7 @@ from sheetsweep.batch import (
     audit_directory,
     discover_csv_files,
     format_batch_report,
+    format_batch_validation,
     validate_directory,
 )
 
@@ -174,3 +175,37 @@ def test_batch_validation_issue_summaries_never_expose_cell_values(tmp_path):
         ("unique_column", "email", 1),
     }
     assert secret not in repr(report)
+
+
+def test_formats_batch_validation_for_people_and_automation(tmp_path):
+    (tmp_path / "passing.csv").write_text("id\n1\n", encoding="utf-8")
+    (tmp_path / "failing.csv").write_text("name\nAda\n", encoding="utf-8")
+    report = validate_directory(
+        tmp_path,
+        ValidationPolicy(name="imports", required_columns=("id",)),
+    )
+
+    text = format_batch_validation(report)
+    assert "Policy: imports" in text
+    assert "Passed: 1" in text
+    assert "Failed: 1" in text
+    assert "- PASS passing.csv" in text
+    assert "- FAIL failing.csv: 1 issue(s)" in text
+    assert "required_column [id]: count=1" in text
+
+    payload = json.loads(format_batch_validation(report, as_json=True))
+    assert payload["policy_name"] == "imports"
+    assert payload["file_count"] == 2
+    assert (payload["passed"], payload["failed"], payload["errors"]) == (1, 1, 0)
+    failed = next(item for item in payload["files"] if item["status"] == "failed")
+    assert failed["issues"][0] == {
+        "column": "id",
+        "count": 1,
+        "rule": "required_column",
+        "severity": "error",
+    }
+
+
+def test_formats_empty_batch_validation_results(tmp_path):
+    report = validate_directory(tmp_path, ValidationPolicy())
+    assert "no matching files" in format_batch_validation(report)
