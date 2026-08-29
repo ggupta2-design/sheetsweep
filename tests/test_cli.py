@@ -269,3 +269,67 @@ def test_batch_audit_supports_recursive_patterns_and_limits(tmp_path, capsys):
         ]
     ) == 2
     assert "exceeding max_files=1" in capsys.readouterr().err
+
+
+def test_batch_validate_applies_policy_with_exit_statuses(tmp_path, capsys):
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "passing.csv").write_text("id\n1\n2\n", encoding="utf-8")
+    (data / "failing.csv").write_text("id\n1\n1\n", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps({"name": "daily-imports", "unique_columns": ["id"]}),
+        encoding="utf-8",
+    )
+
+    assert run(
+        [
+            "batch-validate",
+            str(data),
+            "--policy",
+            str(policy),
+            "--json",
+        ]
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["policy_name"] == "daily-imports"
+    assert (payload["passed"], payload["failed"], payload["errors"]) == (1, 1, 0)
+
+    (data / "failing.csv").unlink()
+    assert run(["batch-validate", str(data), "--policy", str(policy)]) == 0
+    assert "Passed: 1" in capsys.readouterr().out
+
+
+def test_batch_validate_isolates_invalid_files(tmp_path, capsys):
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "invalid.csv").write_text("", encoding="utf-8")
+    policy = tmp_path / "policy.json"
+    policy.write_text("{}", encoding="utf-8")
+
+    assert run(
+        ["batch-validate", str(data), "--policy", str(policy), "--json"]
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["errors"] == 1
+    assert payload["files"][0]["status"] == "error"
+
+
+def test_batch_validate_rejects_invalid_policy_and_unsafe_scope(tmp_path, capsys):
+    policy = tmp_path / "policy.json"
+    policy.write_text('{"unknown": true}', encoding="utf-8")
+    assert run(["batch-validate", str(tmp_path), "--policy", str(policy)]) == 2
+    assert "Unknown policy field" in capsys.readouterr().err
+
+    policy.write_text("{}", encoding="utf-8")
+    assert run(
+        [
+            "batch-validate",
+            str(tmp_path),
+            "--policy",
+            str(policy),
+            "--pattern",
+            "../*.csv",
+        ]
+    ) == 2
+    assert "stay within" in capsys.readouterr().err
