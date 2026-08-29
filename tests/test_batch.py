@@ -154,3 +154,23 @@ def test_batch_validation_isolates_invalid_csv_files(tmp_path):
     invalid = next(item for item in report.files if item.path == "invalid.csv")
     assert invalid.status == "error"
     assert "empty" in invalid.error
+
+
+def test_batch_validation_issue_summaries_never_expose_cell_values(tmp_path):
+    secret = "private-contact@example.com"
+    (tmp_path / "contacts.csv").write_text(
+        f"id,email\n1,{secret}\n1,{secret}\n",
+        encoding="utf-8",
+    )
+    report = validate_directory(
+        tmp_path,
+        ValidationPolicy(unique_columns=("id", "email")),
+    )
+
+    result = report.files[0]
+    assert result.status == "failed"
+    assert {(issue.rule, issue.column, issue.count) for issue in result.issues} == {
+        ("unique_column", "id", 1),
+        ("unique_column", "email", 1),
+    }
+    assert secret not in repr(report)
