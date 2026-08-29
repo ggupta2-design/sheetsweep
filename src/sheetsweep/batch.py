@@ -41,6 +41,16 @@ class BatchReport:
 
 
 @dataclass(frozen=True)
+class BatchValidationIssue:
+    """Privacy-safe issue summary without spreadsheet cell contents."""
+
+    rule: str
+    column: str | None
+    count: int
+    severity: str
+
+
+@dataclass(frozen=True)
 class BatchValidationFileResult:
     """Value-free policy validation outcome for one CSV file."""
 
@@ -49,6 +59,7 @@ class BatchValidationFileResult:
     row_count: int | None = None
     issue_count: int = 0
     rules: tuple[str, ...] = ()
+    issues: tuple[BatchValidationIssue, ...] = ()
     error: str | None = None
 
 
@@ -186,6 +197,15 @@ def validate_directory(
                     row_count=validation.row_count,
                     issue_count=len(validation.issues),
                     rules=tuple(dict.fromkeys(issue.rule for issue in validation.issues)),
+                    issues=tuple(
+                        BatchValidationIssue(
+                            rule=issue.rule,
+                            column=issue.column,
+                            count=issue.count,
+                            severity=issue.severity,
+                        )
+                        for issue in validation.issues
+                    ),
                 )
             )
         except DatasetError as exc:
