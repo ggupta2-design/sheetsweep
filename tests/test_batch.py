@@ -2,11 +2,14 @@ import json
 
 import pytest
 
+from sheetsweep.policy import ValidationPolicy
+
 from sheetsweep.batch import (
     BatchError,
     audit_directory,
     discover_csv_files,
     format_batch_report,
+    validate_directory,
 )
 
 
@@ -107,3 +110,47 @@ def test_enforces_batch_file_limits_before_loading(tmp_path):
 def test_rejects_invalid_batch_file_limits(tmp_path, limit):
     with pytest.raises(BatchError, match="positive integer"):
         discover_csv_files(tmp_path, max_files=limit)
+
+
+def test_validates_folder_with_one_reusable_policy(tmp_path):
+    (tmp_path / "passing.csv").write_text(
+        "id,email\n1,ada@example.com\n2,lin@example.com\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "failing.csv").write_text(
+        "id,email\n1,ada@example.com\n1,\n",
+        encoding="utf-8",
+    )
+    policy = ValidationPolicy(
+        name="contacts",
+        required_columns=("id", "email"),
+        unique_columns=("id",),
+        max_blank_percent=0,
+    )
+
+    report = validate_directory(tmp_path, policy)
+    assert report.policy_name == "contacts"
+    assert (report.passed, report.failed, report.errors) == (1, 1, 0)
+    by_path = {item.path: item for item in report.files}
+    assert by_path["passing.csv"].status == "passed"
+    assert by_path["passing.csv"].row_count == 2
+    assert by_path["failing.csv"].status == "failed"
+    assert by_path["failing.csv"].issue_count == 2
+    assert set(by_path["failing.csv"].rules) == {
+        "max_blank_percent",
+        "unique_column",
+    }
+
+
+def test_batch_validation_isolates_invalid_csv_files(tmp_path):
+    (tmp_path / "good.csv").write_text("id\n1\n", encoding="utf-8")
+    (tmp_path / "invalid.csv").write_text("", encoding="utf-8")
+
+    report = validate_directory(
+        tmp_path,
+        ValidationPolicy(required_columns=("id",)),
+    )
+    assert (report.passed, report.failed, report.errors) == (1, 0, 1)
+    invalid = next(item for item in report.files if item.path == "invalid.csv")
+    assert invalid.status == "error"
+    assert "empty" in invalid.error
