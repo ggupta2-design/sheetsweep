@@ -333,3 +333,55 @@ def test_batch_validate_rejects_invalid_policy_and_unsafe_scope(tmp_path, capsys
         ]
     ) == 2
     assert "stay within" in capsys.readouterr().err
+
+
+def test_batch_validate_merges_explicit_policy_overrides(tmp_path, capsys):
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "contacts.csv").write_text(
+        "id,email\n1,\n1,ada@example.com\n",
+        encoding="utf-8",
+    )
+    policy = tmp_path / "policy.json"
+    policy.write_text(
+        json.dumps({"required_columns": ["id"], "max_blank_percent": 60}),
+        encoding="utf-8",
+    )
+
+    assert run(
+        [
+            "batch-validate",
+            str(data),
+            "--policy",
+            str(policy),
+            "--require-column",
+            "email",
+            "--unique-column",
+            "id",
+            "--max-blank-percent",
+            "40",
+            "--json",
+        ]
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    issues = payload["files"][0]["issues"]
+    assert {issue["rule"] for issue in issues} == {
+        "max_blank_percent",
+        "unique_column",
+    }
+
+
+def test_batch_validate_rejects_invalid_override_threshold(tmp_path, capsys):
+    policy = tmp_path / "policy.json"
+    policy.write_text("{}", encoding="utf-8")
+    assert run(
+        [
+            "batch-validate",
+            str(tmp_path),
+            "--policy",
+            str(policy),
+            "--max-blank-percent",
+            "101",
+        ]
+    ) == 2
+    assert "between 0 and 100" in capsys.readouterr().err
