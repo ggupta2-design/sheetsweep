@@ -7,7 +7,12 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from .batch import audit_directory, format_batch_report
+from .batch import (
+    audit_directory,
+    format_batch_report,
+    format_batch_validation,
+    validate_directory,
+)
 from .clean import build_cleanup_plan
 from .loader import DatasetError, load_csv
 from .models import CleanupOptions
@@ -41,6 +46,17 @@ def build_parser() -> argparse.ArgumentParser:
     batch_audit.add_argument("--pattern", default="*.csv")
     batch_audit.add_argument("--max-files", type=int, default=100)
     batch_audit.add_argument("--json", action="store_true", dest="as_json")
+
+    batch_validate = commands.add_parser(
+        "batch-validate",
+        help="apply one policy to a bounded folder of CSV files",
+    )
+    batch_validate.add_argument("root", type=Path)
+    batch_validate.add_argument("--policy", type=Path, required=True)
+    batch_validate.add_argument("--recursive", action="store_true")
+    batch_validate.add_argument("--pattern", default="*.csv")
+    batch_validate.add_argument("--max-files", type=int, default=100)
+    batch_validate.add_argument("--json", action="store_true", dest="as_json")
 
     check_policy = commands.add_parser(
         "check-policy",
@@ -120,6 +136,17 @@ def run(argv: Sequence[str] | None = None) -> int:
             )
             print(format_batch_report(report, as_json=args.as_json))
             return 0 if report.failed == 0 else 1
+        if args.command == "batch-validate":
+            policy = load_policy(args.policy)
+            report = validate_directory(
+                args.root,
+                policy,
+                recursive=args.recursive,
+                pattern=args.pattern,
+                max_files=args.max_files,
+            )
+            print(format_batch_validation(report, as_json=args.as_json))
+            return 0 if report.failed == 0 and report.errors == 0 else 1
         if args.command == "check-policy":
             print(format_policy(load_policy(args.policy), as_json=args.as_json))
             return 0
