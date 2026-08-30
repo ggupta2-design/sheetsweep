@@ -425,3 +425,58 @@ def format_batch_validation(
                     f"severity={issue.severity}"
                 )
     return "\n".join(lines)
+
+
+
+def batch_schema_payload(report: BatchSchemaReport) -> dict[str, object]:
+    """Return a stable value-free folder schema summary."""
+
+    return {
+        "root": report.root,
+        "recursive": report.recursive,
+        "pattern": report.pattern,
+        "file_count": len(report.files),
+        "matched": report.matched,
+        "drifted": report.drifted,
+        "errors": report.errors,
+        "files": [asdict(result) for result in report.files],
+    }
+
+
+def format_batch_schema(report: BatchSchemaReport, *, as_json: bool = False) -> str:
+    """Format folder schema comparisons for people or automation."""
+
+    payload = batch_schema_payload(report)
+    if as_json:
+        return json.dumps(payload, indent=2, sort_keys=True)
+
+    lines = [
+        f"Root: {report.root}",
+        f"Files: {len(report.files)}",
+        f"Matched: {report.matched}",
+        f"Drifted: {report.drifted}",
+        f"Input errors: {report.errors}",
+    ]
+    if not report.files:
+        lines.append("Results: no matching files")
+        return "\n".join(lines)
+
+    lines.append("Results:")
+    for result in report.files:
+        if result.status == "matched":
+            lines.append(f"- MATCH {result.path}")
+        elif result.status == "error":
+            lines.append(f"- ERROR {result.path}: {result.error}")
+        else:
+            lines.append(
+                f"- DRIFT {result.path}: {result.change_count} change(s) "
+                f"({', '.join(result.change_kinds)})"
+            )
+            for change in result.changes:
+                detail = ""
+                if change.expected is not None:
+                    detail += f" expected={change.expected}"
+                if change.actual is not None:
+                    detail += f" actual={change.actual}"
+                lines.append(f"  - {change.kind} [{change.column}]{detail}")
+    return "\n".join(lines)
