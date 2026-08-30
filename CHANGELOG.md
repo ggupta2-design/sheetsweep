@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.7.0 — 2026-08-30
+
+- Added one-baseline schema checks across bounded CSV folders.
+- Added isolated match, drift, and input-error outcomes per file.
+- Added value-free change details for added, removed, reordered, and type-changed columns.
+- Added readable and JSON folder schema reports.
+- Added an explicit tolerance for compatible added columns without hiding changes.
+- Preserved deterministic discovery, safe patterns, and preflight file limits.
+- Added automation-friendly exit statuses, multi-version tests, and safety documentation.
+
 ## 0.6.0 — 2026-08-29
 
 - Added reusable policy validation across bounded CSV folders.
