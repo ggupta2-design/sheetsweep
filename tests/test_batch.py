@@ -11,6 +11,7 @@ from sheetsweep.batch import (
     check_schema_directory,
     discover_csv_files,
     format_batch_report,
+    format_batch_schema,
     format_batch_validation,
     validate_directory,
 )
@@ -283,3 +284,35 @@ def test_batch_schema_changes_are_detailed_without_cell_values(tmp_path):
         ("reordered", "name"),
     }
     assert secret not in repr(report)
+
+
+def test_formats_batch_schema_reports_for_people_and_automation(tmp_path):
+    (tmp_path / "matching.csv").write_text("id\n1\n", encoding="utf-8")
+    (tmp_path / "drifted.csv").write_text("name\nAda\n", encoding="utf-8")
+    snapshot = SchemaSnapshot(
+        schema_version=1,
+        columns=(ColumnSchema(name="id", inferred_type="number"),),
+    )
+    report = check_schema_directory(tmp_path, snapshot)
+
+    text = format_batch_schema(report)
+    assert "Matched: 1" in text
+    assert "Drifted: 1" in text
+    assert "- MATCH matching.csv" in text
+    assert "- DRIFT drifted.csv: 2 change(s)" in text
+    assert "removed [id]" in text
+    assert "added [name]" in text
+
+    payload = json.loads(format_batch_schema(report, as_json=True))
+    assert payload["file_count"] == 2
+    assert (payload["matched"], payload["drifted"], payload["errors"]) == (1, 1, 0)
+    drifted = next(item for item in payload["files"] if item["status"] == "drifted")
+    assert {change["kind"] for change in drifted["changes"]} == {"removed", "added"}
+
+
+def test_formats_empty_batch_schema_results(tmp_path):
+    report = check_schema_directory(
+        tmp_path,
+        SchemaSnapshot(schema_version=1, columns=()),
+    )
+    assert "no matching files" in format_batch_schema(report)
