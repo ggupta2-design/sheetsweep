@@ -3,10 +3,12 @@ import json
 import pytest
 
 from sheetsweep.policy import ValidationPolicy
+from sheetsweep.schema import ColumnSchema, SchemaSnapshot
 
 from sheetsweep.batch import (
     BatchError,
     audit_directory,
+    check_schema_directory,
     discover_csv_files,
     format_batch_report,
     format_batch_validation,
@@ -209,3 +211,49 @@ def test_formats_batch_validation_for_people_and_automation(tmp_path):
 def test_formats_empty_batch_validation_results(tmp_path):
     report = validate_directory(tmp_path, ValidationPolicy())
     assert "no matching files" in format_batch_validation(report)
+
+
+def test_checks_folder_against_one_schema_baseline(tmp_path):
+    (tmp_path / "matching.csv").write_text(
+        "id,name\n1,Ada\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "drifted.csv").write_text(
+        "id,email\none,ada@example.com\n",
+        encoding="utf-8",
+    )
+    snapshot = SchemaSnapshot(
+        schema_version=1,
+        columns=(
+            ColumnSchema(name="id", inferred_type="number"),
+            ColumnSchema(name="name", inferred_type="text"),
+        ),
+    )
+
+    report = check_schema_directory(tmp_path, snapshot)
+    assert (report.matched, report.drifted, report.errors) == (1, 1, 0)
+    by_path = {item.path: item for item in report.files}
+    assert by_path["matching.csv"].status == "matched"
+    assert by_path["matching.csv"].change_count == 0
+    assert by_path["drifted.csv"].status == "drifted"
+    assert set(by_path["drifted.csv"].change_kinds) == {
+        "removed",
+        "added",
+        "type_changed",
+    }
+    assert by_path["drifted.csv"].change_count == 3
+
+
+def test_batch_schema_check_isolates_invalid_csv_files(tmp_path):
+    (tmp_path / "matching.csv").write_text("id\n1\n", encoding="utf-8")
+    (tmp_path / "invalid.csv").write_text("", encoding="utf-8")
+    snapshot = SchemaSnapshot(
+        schema_version=1,
+        columns=(ColumnSchema(name="id", inferred_type="number"),),
+    )
+
+    report = check_schema_directory(tmp_path, snapshot)
+    assert (report.matched, report.drifted, report.errors) == (1, 0, 1)
+    invalid = next(item for item in report.files if item.path == "invalid.csv")
+    assert invalid.status == "error"
+    assert "empty" in invalid.error
