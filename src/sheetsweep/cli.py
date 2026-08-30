@@ -9,7 +9,9 @@ from typing import Sequence
 
 from .batch import (
     audit_directory,
+    check_schema_directory,
     format_batch_report,
+    format_batch_schema,
     format_batch_validation,
     validate_directory,
 )
@@ -77,6 +79,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="override the policy blank-rate limit",
     )
     batch_validate.add_argument("--json", action="store_true", dest="as_json")
+
+    batch_schema = commands.add_parser(
+        "batch-check-schema",
+        help="compare a bounded folder with one saved schema baseline",
+    )
+    batch_schema.add_argument("root", type=Path)
+    batch_schema.add_argument("--schema", type=Path, required=True)
+    batch_schema.add_argument("--recursive", action="store_true")
+    batch_schema.add_argument("--pattern", default="*.csv")
+    batch_schema.add_argument("--max-files", type=int, default=100)
+    batch_schema.add_argument("--json", action="store_true", dest="as_json")
 
     check_policy = commands.add_parser(
         "check-policy",
@@ -172,6 +185,16 @@ def run(argv: Sequence[str] | None = None) -> int:
             )
             print(format_batch_validation(report, as_json=args.as_json))
             return 0 if report.failed == 0 and report.errors == 0 else 1
+        if args.command == "batch-check-schema":
+            report = check_schema_directory(
+                args.root,
+                load_schema(args.schema),
+                recursive=args.recursive,
+                pattern=args.pattern,
+                max_files=args.max_files,
+            )
+            print(format_batch_schema(report, as_json=args.as_json))
+            return 0 if report.drifted == 0 and report.errors == 0 else 1
         if args.command == "check-policy":
             print(format_policy(load_policy(args.policy), as_json=args.as_json))
             return 0
