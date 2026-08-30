@@ -257,3 +257,29 @@ def test_batch_schema_check_isolates_invalid_csv_files(tmp_path):
     invalid = next(item for item in report.files if item.path == "invalid.csv")
     assert invalid.status == "error"
     assert "empty" in invalid.error
+
+
+def test_batch_schema_changes_are_detailed_without_cell_values(tmp_path):
+    secret = "private-contact@example.com"
+    (tmp_path / "contacts.csv").write_text(
+        f"name,id,email\nAda,one,{secret}\n",
+        encoding="utf-8",
+    )
+    snapshot = SchemaSnapshot(
+        schema_version=1,
+        columns=(
+            ColumnSchema(name="id", inferred_type="number"),
+            ColumnSchema(name="name", inferred_type="text"),
+            ColumnSchema(name="email", inferred_type="text"),
+        ),
+    )
+
+    report = check_schema_directory(tmp_path, snapshot)
+    result = report.files[0]
+    assert result.status == "drifted"
+    assert {(change.kind, change.column) for change in result.changes} == {
+        ("type_changed", "id"),
+        ("reordered", "id"),
+        ("reordered", "name"),
+    }
+    assert secret not in repr(report)
