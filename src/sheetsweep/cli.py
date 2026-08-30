@@ -89,6 +89,11 @@ def build_parser() -> argparse.ArgumentParser:
     batch_schema.add_argument("--recursive", action="store_true")
     batch_schema.add_argument("--pattern", default="*.csv")
     batch_schema.add_argument("--max-files", type=int, default=100)
+    batch_schema.add_argument(
+        "--allow-added-columns",
+        action="store_true",
+        help="report added columns without failing the folder check",
+    )
     batch_schema.add_argument("--json", action="store_true", dest="as_json")
 
     check_policy = commands.add_parser(
@@ -192,6 +197,7 @@ def run(argv: Sequence[str] | None = None) -> int:
                 recursive=args.recursive,
                 pattern=args.pattern,
                 max_files=args.max_files,
+                allowed_change_kinds=("added",) if args.allow_added_columns else (),
             )
             print(format_batch_schema(report, as_json=args.as_json))
             return 0 if report.drifted == 0 and report.errors == 0 else 1
