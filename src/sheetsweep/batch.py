@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Iterable
 
 from .loader import DatasetError, load_csv
 from .policy import ValidationPolicy
@@ -86,6 +87,7 @@ class BatchSchemaChange:
     column: str
     expected: str | int | None = None
     actual: str | int | None = None
+    allowed: bool = False
 
 
 @dataclass(frozen=True)
@@ -109,6 +111,7 @@ class BatchSchemaReport:
     pattern: str
     files: tuple[BatchSchemaFileResult, ...]
     matched: int
+    tolerated: int
     drifted: int
     errors: int
 
@@ -272,8 +275,17 @@ def check_schema_directory(
     recursive: bool = False,
     pattern: str = "*.csv",
     max_files: int = 100,
+    allowed_change_kinds: Iterable[str] = (),
 ) -> BatchSchemaReport:
     """Compare matching CSV files with one value-free schema baseline."""
+
+    allowed_kinds = frozenset(allowed_change_kinds)
+    supported_kinds = {"added", "removed", "reordered", "type_changed"}
+    unknown_kinds = sorted(allowed_kinds - supported_kinds)
+    if unknown_kinds:
+        raise BatchError(
+            "Unsupported allowed schema change kind(s): " + ", ".join(unknown_kinds)
+        )
 
     directory = Path(root)
     paths = discover_csv_files(
@@ -293,13 +305,22 @@ def check_schema_directory(
                     column=change.column,
                     expected=change.expected,
                     actual=change.actual,
+                    allowed=change.kind in allowed_kinds,
                 )
                 for change in comparison.changes
+            )
+            unallowed = tuple(change for change in changes if not change.allowed)
+            status = (
+                "matched"
+                if comparison.matches
+                else "tolerated"
+                if not unallowed
+                else "drifted"
             )
             results.append(
                 BatchSchemaFileResult(
                     path=relative,
-                    status="matched" if comparison.matches else "drifted",
+                    status=status,
                     change_count=len(changes),
                     change_kinds=tuple(dict.fromkeys(change.kind for change in changes)),
                     changes=changes,
@@ -320,6 +341,7 @@ def check_schema_directory(
         pattern=pattern,
         files=tuple(results),
         matched=sum(result.status == "matched" for result in results),
+        tolerated=sum(result.status == "tolerated" for result in results),
         drifted=sum(result.status == "drifted" for result in results),
         errors=sum(result.status == "error" for result in results),
     )
@@ -437,6 +459,7 @@ def batch_schema_payload(report: BatchSchemaReport) -> dict[str, object]:
         "pattern": report.pattern,
         "file_count": len(report.files),
         "matched": report.matched,
+        "tolerated": report.tolerated,
         "drifted": report.drifted,
         "errors": report.errors,
         "files": [asdict(result) for result in report.files],
@@ -454,6 +477,7 @@ def format_batch_schema(report: BatchSchemaReport, *, as_json: bool = False) -> 
         f"Root: {report.root}",
         f"Files: {len(report.files)}",
         f"Matched: {report.matched}",
+        f"Tolerated: {report.tolerated}",
         f"Drifted: {report.drifted}",
         f"Input errors: {report.errors}",
     ]
@@ -465,6 +489,10 @@ def format_batch_schema(report: BatchSchemaReport, *, as_json: bool = False) -> 
     for result in report.files:
         if result.status == "matched":
             lines.append(f"- MATCH {result.path}")
+        elif result.status == "tolerated":
+            lines.append(
+                f"- ALLOW {result.path}: {result.change_count} allowed change(s)"
+            )
         elif result.status == "error":
             lines.append(f"- ERROR {result.path}: {result.error}")
         else:
@@ -478,5 +506,8 @@ def format_batch_schema(report: BatchSchemaReport, *, as_json: bool = False) -> 
                     detail += f" expected={change.expected}"
                 if change.actual is not None:
                     detail += f" actual={change.actual}"
-                lines.append(f"  - {change.kind} [{change.column}]{detail}")
+                allowance = " allowed" if change.allowed else ""
+                lines.append(
+                    f"  - {change.kind} [{change.column}]{detail}{allowance}"
+                )
     return "\n".join(lines)
