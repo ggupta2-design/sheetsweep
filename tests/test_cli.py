@@ -455,3 +455,60 @@ def test_batch_check_schema_rejects_invalid_scope_and_baseline(tmp_path, capsys)
         ["batch-check-schema", str(tmp_path), "--schema", str(schema)]
     ) == 2
     assert "Unsupported schema_version" in capsys.readouterr().err
+
+
+def test_batch_check_schema_can_tolerate_added_columns(tmp_path, capsys):
+    data = tmp_path / "data"
+    data.mkdir()
+    baseline = data / "baseline.csv"
+    baseline.write_text("id\n1\n", encoding="utf-8")
+    schema = tmp_path / "schema.json"
+    assert run(
+        ["snapshot-schema", str(baseline), "--output", str(schema), "--apply"]
+    ) == 0
+    capsys.readouterr()
+    baseline.write_text("id,email\n1,ada@example.com\n", encoding="utf-8")
+
+    assert run(
+        [
+            "batch-check-schema",
+            str(data),
+            "--schema",
+            str(schema),
+            "--allow-added-columns",
+            "--json",
+        ]
+    ) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert (payload["matched"], payload["tolerated"], payload["drifted"]) == (0, 1, 0)
+    assert payload["files"][0]["changes"][0]["kind"] == "added"
+    assert payload["files"][0]["changes"][0]["allowed"] is True
+
+
+def test_added_column_tolerance_does_not_hide_breaking_drift(tmp_path, capsys):
+    data = tmp_path / "data"
+    data.mkdir()
+    source = data / "data.csv"
+    source.write_text("id,name\n1,Ada\n", encoding="utf-8")
+    schema = tmp_path / "schema.json"
+    assert run(
+        ["snapshot-schema", str(source), "--output", str(schema), "--apply"]
+    ) == 0
+    capsys.readouterr()
+    source.write_text("id,email\n1,ada@example.com\n", encoding="utf-8")
+
+    assert run(
+        [
+            "batch-check-schema",
+            str(data),
+            "--schema",
+            str(schema),
+            "--allow-added-columns",
+            "--json",
+        ]
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["drifted"] == 1
+    changes = payload["files"][0]["changes"]
+    assert {change["kind"] for change in changes} == {"removed", "added"}
+    assert next(change for change in changes if change["kind"] == "removed")["allowed"] is False
