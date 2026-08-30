@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "sheetsweep"
-version = "0.6.0"
-description = "Preview-first CSV batch validation, auditing, schema monitoring, and cleanup"
+version = "0.7.0"
+description = "Preview-first CSV folder validation, schema monitoring, auditing, and cleanup"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
