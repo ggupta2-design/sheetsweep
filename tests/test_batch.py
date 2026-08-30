@@ -316,3 +316,65 @@ def test_formats_empty_batch_schema_results(tmp_path):
         SchemaSnapshot(schema_version=1, columns=()),
     )
     assert "no matching files" in format_batch_schema(report)
+
+
+def test_allows_only_explicit_schema_change_kinds(tmp_path):
+    (tmp_path / "added.csv").write_text(
+        "id,name,email\n1,Ada,ada@example.com\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "removed.csv").write_text("id\n1\n", encoding="utf-8")
+    snapshot = SchemaSnapshot(
+        schema_version=1,
+        columns=(
+            ColumnSchema(name="id", inferred_type="number"),
+            ColumnSchema(name="name", inferred_type="text"),
+        ),
+    )
+
+    report = check_schema_directory(
+        tmp_path,
+        snapshot,
+        allowed_change_kinds=("added",),
+    )
+    assert (report.matched, report.tolerated, report.drifted, report.errors) == (
+        0,
+        1,
+        1,
+        0,
+    )
+    by_path = {item.path: item for item in report.files}
+    assert by_path["added.csv"].status == "tolerated"
+    assert by_path["added.csv"].changes[0].allowed is True
+    assert by_path["removed.csv"].status == "drifted"
+    assert by_path["removed.csv"].changes[0].allowed is False
+
+
+def test_rejects_unknown_schema_tolerance_kinds(tmp_path):
+    snapshot = SchemaSnapshot(schema_version=1, columns=())
+    with pytest.raises(BatchError, match="Unsupported allowed schema change"):
+        check_schema_directory(
+            tmp_path,
+            snapshot,
+            allowed_change_kinds=("renamed",),
+        )
+
+
+def test_formats_tolerated_schema_changes(tmp_path):
+    (tmp_path / "data.csv").write_text("id,email\n1,a@example.com\n", encoding="utf-8")
+    snapshot = SchemaSnapshot(
+        schema_version=1,
+        columns=(ColumnSchema(name="id", inferred_type="number"),),
+    )
+    report = check_schema_directory(
+        tmp_path,
+        snapshot,
+        allowed_change_kinds=("added",),
+    )
+
+    text = format_batch_schema(report)
+    assert "Tolerated: 1" in text
+    assert "- ALLOW data.csv: 1 allowed change(s)" in text
+    payload = json.loads(format_batch_schema(report, as_json=True))
+    assert payload["tolerated"] == 1
+    assert payload["files"][0]["changes"][0]["allowed"] is True
