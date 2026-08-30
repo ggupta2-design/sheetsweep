@@ -39,17 +39,21 @@ sheetsweep batch-validate imports/ \
   --recursive \
   --max-files 50 \
   --json
+sheetsweep batch-check-schema imports/ \
+  --schema contacts.schema.json \
+  --recursive \
+  --max-files 50 \
+  --json
 ```
 
-Batch validation isolates quality failures and unreadable files so one bad CSV
-does not hide the remaining results. Readable and JSON reports use automation-friendly exit statuses. See the [validation guide](docs/validation.md), [policy guide](docs/policies.md), [schema drift guide](docs/schema-drift.md), and [batch audit guide](docs/batch-audits.md), and [batch validation guide](docs/batch-validation.md) for details.
+Batch validation and folder-wide schema checks isolate quality failures, structural drift, and unreadable files so one bad CSV does not hide the remaining results. Readable and JSON reports use automation-friendly exit statuses. See the [validation guide](docs/validation.md), [policy guide](docs/policies.md), [schema drift guide](docs/schema-drift.md), and [batch audit guide](docs/batch-audits.md), and [batch validation guide](docs/batch-validation.md), and [folder schema guide](docs/batch-schema.md) for details.
 
 ## Safety principles
 
 - **Preview first:** audits, validations, and cleanup plans never modify the source file.
 - **No silent overwrite:** cleaned output must be a new path unless replacement is explicitly allowed.
 - **Local processing:** spreadsheet data stays on your machine.
-- **Bounded batch work:** folder audits and validations enforce a reviewed maximum file count.
+- **Bounded batch work:** folder audits, validations, and schema checks enforce a reviewed maximum file count.
 - **Privacy-aware reports:** validation and schema results never include cell contents.
 - **Value-free baselines:** schema snapshots contain column names, order, and inferred types only.
 - **Deterministic results:** identical inputs and options produce identical output.
