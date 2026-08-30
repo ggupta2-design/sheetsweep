@@ -100,3 +100,25 @@ for an invalid policy or unsafe batch request. One-run rule overrides use the
 same `--require-column`, `--unique-column`, and `--max-blank-percent`
 options as single-file validation. See
 [batch-validation.md](batch-validation.md) for report and privacy details.
+
+
+
+Compare a bounded import folder with one value-free schema baseline:
+
+```bash
+sheetsweep batch-check-schema imports/ \
+  --schema baselines/contacts.schema.json \
+  --max-files 50
+
+sheetsweep batch-check-schema imports/ \
+  --schema baselines/contacts.schema.json \
+  --recursive \
+  --pattern "daily-*.csv" \
+  --json
+```
+
+The command returns status 1 for structural drift or unreadable files and status
+2 for an invalid baseline or unsafe request. Use `--allow-added-columns` only
+when optional new fields are compatible with downstream consumers; removals,
+reordering, and type changes will still fail. See
+[batch-schema.md](batch-schema.md) for tolerance and privacy details.
