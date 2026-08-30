@@ -385,3 +385,73 @@ def test_batch_validate_rejects_invalid_override_threshold(tmp_path, capsys):
         ]
     ) == 2
     assert "between 0 and 100" in capsys.readouterr().err
+
+
+def test_batch_check_schema_reports_drift_with_exit_status(tmp_path, capsys):
+    data = tmp_path / "data"
+    data.mkdir()
+    matching = data / "matching.csv"
+    matching.write_text("id,name\n1,Ada\n", encoding="utf-8")
+    (data / "drifted.csv").write_text("id,email\none,Ada\n", encoding="utf-8")
+    schema = tmp_path / "schema.json"
+    assert run(
+        [
+            "snapshot-schema",
+            str(matching),
+            "--output",
+            str(schema),
+            "--apply",
+        ]
+    ) == 0
+    capsys.readouterr()
+
+    assert run(
+        [
+            "batch-check-schema",
+            str(data),
+            "--schema",
+            str(schema),
+            "--json",
+        ]
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert (payload["matched"], payload["drifted"], payload["errors"]) == (1, 1, 0)
+
+    (data / "drifted.csv").unlink()
+    assert run(["batch-check-schema", str(data), "--schema", str(schema)]) == 0
+    assert "Matched: 1" in capsys.readouterr().out
+
+
+def test_batch_check_schema_isolates_input_errors(tmp_path, capsys):
+    data = tmp_path / "data"
+    data.mkdir()
+    source = data / "source.csv"
+    source.write_text("id\n1\n", encoding="utf-8")
+    schema = tmp_path / "schema.json"
+    assert run(
+        ["snapshot-schema", str(source), "--output", str(schema), "--apply"]
+    ) == 0
+    capsys.readouterr()
+    source.write_text("", encoding="utf-8")
+
+    assert run(
+        ["batch-check-schema", str(data), "--schema", str(schema), "--json"]
+    ) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["errors"] == 1
+    assert payload["files"][0]["status"] == "error"
+
+
+def test_batch_check_schema_rejects_invalid_scope_and_baseline(tmp_path, capsys):
+    missing = tmp_path / "missing.schema.json"
+    assert run(
+        ["batch-check-schema", str(tmp_path), "--schema", str(missing)]
+    ) == 2
+    assert "does not exist" in capsys.readouterr().err
+
+    schema = tmp_path / "schema.json"
+    schema.write_text('{"schema_version": 99, "columns": []}', encoding="utf-8")
+    assert run(
+        ["batch-check-schema", str(tmp_path), "--schema", str(schema)]
+    ) == 2
+    assert "Unsupported schema_version" in capsys.readouterr().err
