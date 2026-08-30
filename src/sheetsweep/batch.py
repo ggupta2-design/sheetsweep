@@ -9,6 +9,7 @@ from pathlib import Path
 from .loader import DatasetError, load_csv
 from .policy import ValidationPolicy
 from .profile import profile_dataset
+from .schema import SchemaSnapshot, compare_schema
 from .validation import validate_dataset
 
 
@@ -74,6 +75,41 @@ class BatchValidationReport:
     files: tuple[BatchValidationFileResult, ...]
     passed: int
     failed: int
+    errors: int
+
+
+@dataclass(frozen=True)
+class BatchSchemaChange:
+    """Value-free structural change found in one CSV."""
+
+    kind: str
+    column: str
+    expected: str | int | None = None
+    actual: str | int | None = None
+
+
+@dataclass(frozen=True)
+class BatchSchemaFileResult:
+    """Schema comparison outcome for one CSV file."""
+
+    path: str
+    status: str
+    change_count: int = 0
+    change_kinds: tuple[str, ...] = ()
+    changes: tuple[BatchSchemaChange, ...] = ()
+    error: str | None = None
+
+
+@dataclass(frozen=True)
+class BatchSchemaReport:
+    """Aggregate schema comparison for a bounded CSV folder."""
+
+    root: str
+    recursive: bool
+    pattern: str
+    files: tuple[BatchSchemaFileResult, ...]
+    matched: int
+    drifted: int
     errors: int
 
 
@@ -225,6 +261,66 @@ def validate_directory(
         files=tuple(results),
         passed=sum(result.status == "passed" for result in results),
         failed=sum(result.status == "failed" for result in results),
+        errors=sum(result.status == "error" for result in results),
+    )
+
+
+def check_schema_directory(
+    root: str | Path,
+    snapshot: SchemaSnapshot,
+    *,
+    recursive: bool = False,
+    pattern: str = "*.csv",
+    max_files: int = 100,
+) -> BatchSchemaReport:
+    """Compare matching CSV files with one value-free schema baseline."""
+
+    directory = Path(root)
+    paths = discover_csv_files(
+        directory,
+        recursive=recursive,
+        pattern=pattern,
+        max_files=max_files,
+    )
+    results: list[BatchSchemaFileResult] = []
+    for path in paths:
+        relative = path.relative_to(directory).as_posix()
+        try:
+            comparison = compare_schema(snapshot, load_csv(path))
+            changes = tuple(
+                BatchSchemaChange(
+                    kind=change.kind,
+                    column=change.column,
+                    expected=change.expected,
+                    actual=change.actual,
+                )
+                for change in comparison.changes
+            )
+            results.append(
+                BatchSchemaFileResult(
+                    path=relative,
+                    status="matched" if comparison.matches else "drifted",
+                    change_count=len(changes),
+                    change_kinds=tuple(dict.fromkeys(change.kind for change in changes)),
+                    changes=changes,
+                )
+            )
+        except DatasetError as exc:
+            results.append(
+                BatchSchemaFileResult(
+                    path=relative,
+                    status="error",
+                    error=str(exc),
+                )
+            )
+
+    return BatchSchemaReport(
+        root=str(directory),
+        recursive=recursive,
+        pattern=pattern,
+        files=tuple(results),
+        matched=sum(result.status == "matched" for result in results),
+        drifted=sum(result.status == "drifted" for result in results),
         errors=sum(result.status == "error" for result in results),
     )
 
