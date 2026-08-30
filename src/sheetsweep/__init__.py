@@ -3,10 +3,14 @@
 from .batch import (
     BatchError,
     BatchReport,
+    BatchSchemaChange,
+    BatchSchemaFileResult,
+    BatchSchemaReport,
     BatchValidationFileResult,
     BatchValidationIssue,
     BatchValidationReport,
     audit_directory,
+    check_schema_directory,
     validate_directory,
 )
 from .models import CleanupOptions, Dataset, Profile
@@ -25,6 +29,9 @@ from .validation import ValidationIssue, ValidationReport, validate_dataset
 __all__ = [
     "BatchError",
     "BatchReport",
+    "BatchSchemaChange",
+    "BatchSchemaFileResult",
+    "BatchSchemaReport",
     "BatchValidationFileResult",
     "BatchValidationIssue",
     "BatchValidationReport",
@@ -41,10 +48,11 @@ __all__ = [
     "ValidationReport",
     "audit_directory",
     "build_schema_snapshot",
+    "check_schema_directory",
     "compare_schema",
     "load_policy",
     "load_schema",
     "validate_dataset",
     "validate_directory",
 ]
-__version__ = "0.6.0"
+__version__ = "0.7.0"
